@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Message } from "@/types";
 import { useMessageStore } from "@/stores/message-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,6 +9,7 @@ import { Pencil, Trash2, Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfileCard } from "@/components/user-profile-card";
+import { FormattedMessage } from "@/components/chat/formatted-message";
 import {
   Dialog,
   DialogContent,
@@ -17,44 +18,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-
-/** Renders message content with highlighted @mentions */
-function MentionContent({ text }: { text: string }) {
-  const parts = useMemo(() => {
-    const regex = /@(\w+)/g;
-    const result: { text: string; isMention: boolean }[] = [];
-    let lastIndex = 0;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        result.push({ text: text.slice(lastIndex, match.index), isMention: false });
-      }
-      result.push({ text: match[0], isMention: true });
-      lastIndex = regex.lastIndex;
-    }
-    if (lastIndex < text.length) {
-      result.push({ text: text.slice(lastIndex), isMention: false });
-    }
-    return result;
-  }, [text]);
-
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.isMention ? (
-          <span
-            key={i}
-            className="bg-discord-brand/20 text-discord-brand-hover rounded px-0.5 cursor-pointer hover:bg-discord-brand/30 transition-colors"
-          >
-            {part.text}
-          </span>
-        ) : (
-          <span key={i}>{part.text}</span>
-        )
-      )}
-    </>
-  );
-}
 
 interface MessageItemProps {
   message: Message;
@@ -149,7 +112,7 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
               </div>
             ) : (
               <div className="text-gray-300 text-sm whitespace-pre-wrap break-words">
-                {message.content && <MentionContent text={message.content} />}
+                {message.content && <FormattedMessage text={message.content} />}
                 {message.is_edited && (
                   <span className="text-[10px] text-discord-muted ml-1">(edited)</span>
                 )}
@@ -210,7 +173,7 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
               </div>
             ) : (
               <div className="text-gray-300 text-sm whitespace-pre-wrap break-words">
-                {message.content && <MentionContent text={message.content} />}
+                {message.content && <FormattedMessage text={message.content} />}
                 {message.is_edited && (
                   <span className="text-[10px] text-discord-muted ml-1">(edited)</span>
                 )}

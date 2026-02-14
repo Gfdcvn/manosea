@@ -201,6 +201,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
     if (data.banner_color !== undefined) updateData.banner_color = data.banner_color;
     if (data.tag !== undefined) updateData.tag = data.tag;
     if (data.icon_url !== undefined) updateData.icon_url = data.icon_url;
+    if (data.is_discoverable !== undefined) updateData.is_discoverable = data.is_discoverable;
     await supabase.from("servers").update(updateData).eq("id", serverId);
     await get().fetchServers();
     // Update currentServer in local state

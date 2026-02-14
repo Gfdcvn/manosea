@@ -10,11 +10,15 @@ interface MessageState {
   typingUsers: TypingIndicator[];
   isLoading: boolean;
   hasMore: boolean;
+  unreadDmChannels: Set<string>;
 
   setMessages: (messages: Message[]) => void;
   setCurrentChannelId: (id: string | null) => void;
   setCurrentDmChannel: (channel: DMChannel | null) => void;
   addMessage: (message: Message) => void;
+  markDmAsUnread: (dmChannelId: string) => void;
+  markDmAsRead: (dmChannelId: string) => void;
+  bumpDmChannel: (dmChannelId: string) => void;
 
   fetchMessages: (channelId: string, isDm?: boolean) => Promise<void>;
   fetchMoreMessages: (channelId: string, isDm?: boolean) => Promise<void>;
@@ -39,10 +43,34 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   typingUsers: [],
   isLoading: false,
   hasMore: true,
+  unreadDmChannels: new Set<string>(),
 
   setMessages: (messages) => set({ messages }),
   setCurrentChannelId: (currentChannelId) => set({ currentChannelId }),
   setCurrentDmChannel: (currentDmChannel) => set({ currentDmChannel }),
+  markDmAsUnread: (dmChannelId) =>
+    set((state) => {
+      // Only mark as unread if we're not currently viewing this DM
+      if (state.currentChannelId === dmChannelId) return state;
+      const next = new Set(state.unreadDmChannels);
+      next.add(dmChannelId);
+      return { unreadDmChannels: next };
+    }),
+  markDmAsRead: (dmChannelId) =>
+    set((state) => {
+      const next = new Set(state.unreadDmChannels);
+      next.delete(dmChannelId);
+      return { unreadDmChannels: next };
+    }),
+  bumpDmChannel: (dmChannelId) =>
+    set((state) => {
+      const idx = state.dmChannels.findIndex((dm) => dm.id === dmChannelId);
+      if (idx <= 0) return state; // already at top or not found
+      const channels = [...state.dmChannels];
+      const [bumped] = channels.splice(idx, 1);
+      channels.unshift(bumped);
+      return { dmChannels: channels };
+    }),
   addMessage: (message) =>
     set((state) => {
       // Deduplicate — skip if message already exists
@@ -167,7 +195,35 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
       .order("created_at", { ascending: false });
 
-    set({ dmChannels: data || [] });
+    if (!data) { set({ dmChannels: [] }); return; }
+
+    // Fetch last message for each DM channel to sort by activity
+    const channelIds = data.map((dm) => dm.id);
+    if (channelIds.length > 0) {
+      // Get the latest message for each DM channel
+      const { data: lastMessages } = await supabase
+        .from("messages")
+        .select("dm_channel_id, created_at")
+        .in("dm_channel_id", channelIds)
+        .order("created_at", { ascending: false });
+
+      // Build map of dm_channel_id -> latest message timestamp
+      const lastMessageMap: Record<string, string> = {};
+      (lastMessages || []).forEach((msg) => {
+        if (msg.dm_channel_id && !lastMessageMap[msg.dm_channel_id]) {
+          lastMessageMap[msg.dm_channel_id] = msg.created_at;
+        }
+      });
+
+      // Sort: DMs with recent messages first, then by channel creation date
+      data.sort((a, b) => {
+        const aTime = lastMessageMap[a.id] || a.created_at;
+        const bTime = lastMessageMap[b.id] || b.created_at;
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
+    }
+
+    set({ dmChannels: data });
   },
 
   createDmChannel: async (userId) => {

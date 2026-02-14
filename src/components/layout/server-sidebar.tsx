@@ -13,8 +13,10 @@ import { cn } from "@/lib/utils";
 import { Plus, Compass, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { CreateServerModal } from "@/components/modals/create-server-modal";
+import { ExploreServersModal } from "@/components/modals/explore-servers-modal";
 import { createClient } from "@/lib/supabase/client";
 import { ServerBadge } from "@/types";
+import { useNotificationStore } from "@/stores/notification-store";
 
 export function ServerSidebar() {
   const router = useRouter();
@@ -22,6 +24,8 @@ export function ServerSidebar() {
   const servers = useServerStore((s) => s.servers);
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [serverBadgesMap, setServerBadgesMap] = useState<Record<string, ServerBadge[]>>({});
+  const [showExplore, setShowExplore] = useState(false);
+  const serverMentions = useNotificationStore((s) => s.serverMentions);
 
   const isDmActive = pathname?.startsWith("/channels/me");
 
@@ -72,6 +76,8 @@ export function ServerSidebar() {
           <div className="flex flex-col items-center gap-2 px-3">
             {servers.map((server) => {
               const isActive = pathname?.includes(server.id);
+              const hasMention = serverMentions[server.id] && serverMentions[server.id].size > 0;
+              const mentionCount = hasMention ? serverMentions[server.id].size : 0;
               return (
                 <Tooltip key={server.id}>
                   <TooltipTrigger asChild>
@@ -102,6 +108,12 @@ export function ServerSidebar() {
                           isActive ? "h-10" : "h-0 group-hover:h-5"
                         )}
                       />
+                      {/* Mention badge */}
+                      {hasMention && !isActive && (
+                        <div className="absolute -bottom-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-discord-darker">
+                          {mentionCount}
+                        </div>
+                      )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
@@ -138,7 +150,10 @@ export function ServerSidebar() {
         {/* Explore */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <button className="w-12 h-12 rounded-[24px] flex items-center justify-center bg-discord-channel text-discord-green hover:bg-discord-green hover:text-white hover:rounded-[16px] transition-all duration-200">
+            <button
+              onClick={() => setShowExplore(true)}
+              className="w-12 h-12 rounded-[24px] flex items-center justify-center bg-discord-channel text-discord-green hover:bg-discord-green hover:text-white hover:rounded-[16px] transition-all duration-200"
+            >
               <Compass className="w-6 h-6" />
             </button>
           </TooltipTrigger>
@@ -147,6 +162,7 @@ export function ServerSidebar() {
       </div>
 
       <CreateServerModal open={showCreateServer} onClose={() => setShowCreateServer(false)} />
+      <ExploreServersModal open={showExplore} onClose={() => setShowExplore(false)} />
     </>
   );
 }

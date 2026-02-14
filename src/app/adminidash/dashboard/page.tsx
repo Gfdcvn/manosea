@@ -74,7 +74,7 @@ export default function AdminOverview() {
   ];
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-discord-chat min-h-full">
       <h1 className="text-2xl font-bold text-white mb-6">Dashboard Overview</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

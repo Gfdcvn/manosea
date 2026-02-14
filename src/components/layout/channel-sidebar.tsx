@@ -27,6 +27,7 @@ import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { Channel } from "@/types";
+import { useNotificationStore } from "@/stores/notification-store";
 
 interface ChannelSidebarProps {
   serverId: string;
@@ -38,6 +39,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer } = useServerStore();
   const user = useAuthStore((s) => s.user);
   const isOwner = currentServer && user && currentServer.owner_id === user.id;
+  const serverMentions = useNotificationStore((s) => s.serverMentions);
+  const clearChannelMention = useNotificationStore((s) => s.clearChannelMention);
+  const mentionedChannels = serverMentions[serverId] || new Set<string>();
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [createDialog, setCreateDialog] = useState<{
     type: "text" | "voice" | "category";
@@ -207,13 +211,17 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
               key={channel.id}
               channel={channel}
               isActive={pathname?.includes(channel.id) || false}
-              onClick={() => router.push(`/channels/${serverId}/${channel.id}`)}
+              onClick={() => {
+                clearChannelMention(serverId, channel.id);
+                router.push(`/channels/${serverId}/${channel.id}`);
+              }}
               isOwner={!!isOwner}
               onRename={(newName) => renameChannel(channel.id, newName, serverId)}
               onDelete={() => deleteChannel(channel.id, serverId)}
               onDragStart={() => handleDragStart(channel.id)}
               onDragEnd={handleDragEnd}
               isDragging={draggedChannelId === channel.id}
+              hasMention={mentionedChannels.has(channel.id)}
             />
           ))}
         </div>
@@ -270,13 +278,17 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                     key={channel.id}
                     channel={channel}
                     isActive={pathname?.includes(channel.id) || false}
-                    onClick={() => router.push(`/channels/${serverId}/${channel.id}`)}
+                    onClick={() => {
+                      clearChannelMention(serverId, channel.id);
+                      router.push(`/channels/${serverId}/${channel.id}`);
+                    }}
                     isOwner={!!isOwner}
                     onRename={(newName) => renameChannel(channel.id, newName, serverId)}
                     onDelete={() => deleteChannel(channel.id, serverId)}
                     onDragStart={() => handleDragStart(channel.id)}
                     onDragEnd={handleDragEnd}
                     isDragging={draggedChannelId === channel.id}
+                    hasMention={mentionedChannels.has(channel.id)}
                   />
                 ))}
               </div>
@@ -421,6 +433,7 @@ function ChannelButton({
   onDragStart,
   onDragEnd,
   isDragging,
+  hasMention,
 }: {
   channel: Channel;
   isActive: boolean;
@@ -431,6 +444,7 @@ function ChannelButton({
   onDragStart?: () => void;
   onDragEnd?: () => void;
   isDragging?: boolean;
+  hasMention?: boolean;
 }) {
   const [showRename, setShowRename] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -472,7 +486,10 @@ function ChannelButton({
           ) : (
             <Hash className="w-4 h-4 shrink-0" />
           )}
-          <span className="truncate">{channel.name}</span>
+          <span className={cn("truncate", hasMention && !isActive && "text-white font-semibold")}>{channel.name}</span>
+          {hasMention && !isActive && (
+            <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 ml-auto" />
+          )}
         </button>
         {isOwner && (
           <DropdownMenu>

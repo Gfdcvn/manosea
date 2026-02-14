@@ -66,7 +66,7 @@ export default function AdminManagementPage() {
   const regularBadges = badges.filter((b) => b.standing_override === null || b.standing_override === undefined);
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-discord-chat min-h-full">
       <h1 className="text-2xl font-bold text-white mb-6">Management</h1>
 
       {/* Badge Registry */}

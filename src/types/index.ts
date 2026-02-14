@@ -67,6 +67,7 @@ export interface Server {
   tag: string | null;
   owner_id: string;
   is_suspended: boolean;
+  is_discoverable: boolean;
   suspension_reason: string | null;
   suspension_end: string | null;
   created_at: string;

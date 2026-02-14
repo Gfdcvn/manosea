@@ -127,7 +127,7 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-discord-chat min-h-full">
       <h1 className="text-2xl font-bold text-white mb-6">User Management</h1>
 
       {/* Search */}

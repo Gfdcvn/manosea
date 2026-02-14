@@ -25,6 +25,8 @@ export function DmSidebar() {
   const dmChannels = useMessageStore((s) => s.dmChannels);
   const createDmChannel = useMessageStore((s) => s.createDmChannel);
   const deleteDmChannel = useMessageStore((s) => s.deleteDmChannel);
+  const unreadDmChannels = useMessageStore((s) => s.unreadDmChannels);
+  const markDmAsRead = useMessageStore((s) => s.markDmAsRead);
   const user = useAuthStore((s) => s.user);
   const [showNewDm, setShowNewDm] = useState(false);
   const [friendsList, setFriendsList] = useState<User[]>([]);
@@ -161,6 +163,7 @@ export function DmSidebar() {
             const otherUser = dm.user1_id === user?.id ? dm.user2 : dm.user1;
             if (!otherUser) return null;
             const isActive = pathname?.includes(dm.id);
+            const isUnread = unreadDmChannels.has(dm.id);
 
             return (
               <div
@@ -169,11 +172,16 @@ export function DmSidebar() {
                   "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors group",
                   isActive
                     ? "bg-discord-active text-white"
+                    : isUnread
+                    ? "text-white hover:bg-discord-hover bg-discord-hover/40"
                     : "text-gray-400 hover:text-white hover:bg-discord-hover"
                 )}
               >
                 <button
-                  onClick={() => router.push(`/channels/me/${dm.id}`)}
+                  onClick={() => {
+                    markDmAsRead(dm.id);
+                    router.push(`/channels/me/${dm.id}`);
+                  }}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
                   <div className="relative">
@@ -192,7 +200,7 @@ export function DmSidebar() {
                       )}
                     />
                   </div>
-                  <span className="truncate">{otherUser.display_name}</span>
+                  <span className={cn("truncate", isUnread && "font-bold text-white")}>{otherUser.display_name}</span>
                 </button>
                 <button
                   onClick={async (e) => {

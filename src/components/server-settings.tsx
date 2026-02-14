@@ -19,11 +19,13 @@ import {
   Palette,
   Tag,
   Hash,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
 import { ServerInvite } from "@/types";
+import { Switch } from "@/components/ui/switch";
 
 const BANNER_PRESETS = [
   "#5865F2", "#57F287", "#FEE75C", "#EB459E", "#ED4245",
@@ -48,6 +50,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
   const [description, setDescription] = useState(currentServer?.description || "");
   const [bannerColor, setBannerColor] = useState(currentServer?.banner_color || "#5865F2");
   const [tag, setTag] = useState(currentServer?.tag || "");
+  const [isDiscoverable, setIsDiscoverable] = useState(currentServer?.is_discoverable || false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState(currentServer?.banner_color || "#5865F2");
 
@@ -64,6 +67,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
       setDescription(currentServer.description || "");
       setBannerColor(currentServer.banner_color || "#5865F2");
       setTag(currentServer.tag || "");
+      setIsDiscoverable(currentServer.is_discoverable || false);
       setCustomColor(currentServer.banner_color || "#5865F2");
     }
   }, [currentServer]);
@@ -356,6 +360,29 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                       </Button>
                     </div>
                   )}
+                </div>
+
+                {/* Discoverable */}
+                <div className="bg-discord-darker rounded-lg p-4 border border-gray-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <Label className="text-sm font-semibold text-white">Discoverable</Label>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Allow anyone to find and join this server from the Explore page.
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={isDiscoverable}
+                      onCheckedChange={async (checked) => {
+                        setIsDiscoverable(checked);
+                        await updateServer(serverId, { is_discoverable: checked } as Partial<typeof currentServer> & { is_discoverable: boolean });
+                        await fetchServers();
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

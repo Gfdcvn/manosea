@@ -13,12 +13,15 @@ export default function DmChannelPage() {
   const params = useParams();
   const channelId = params.channelId as string;
   const user = useAuthStore((s) => s.user);
-  const { fetchMessages, setCurrentChannelId, setCurrentDmChannel } = useMessageStore();
+  const { fetchMessages, setCurrentChannelId, setCurrentDmChannel, markDmAsRead } = useMessageStore();
   const [otherUser, setOtherUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!channelId || !user) return;
+
+    // Mark as read when opening
+    markDmAsRead(channelId);
 
     const load = async () => {
       setLoading(true);
@@ -46,7 +49,7 @@ export default function DmChannelPage() {
       setCurrentChannelId(null);
       setCurrentDmChannel(null);
     };
-  }, [channelId, user, fetchMessages, setCurrentChannelId, setCurrentDmChannel]);
+  }, [channelId, user, fetchMessages, setCurrentChannelId, setCurrentDmChannel, markDmAsRead]);
 
   if (loading) {
     return <LoadingSpinner fullPage size="lg" label="Loading conversation..." />;

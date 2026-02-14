@@ -9,6 +9,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const currentChannelId = useMessageStore((s) => s.currentChannelId);
   const addMessage = useMessageStore((s) => s.addMessage);
+  const markDmAsUnread = useMessageStore((s) => s.markDmAsUnread);
+  const bumpDmChannel = useMessageStore((s) => s.bumpDmChannel);
 
   useEffect(() => {
     if (!user) return;
@@ -25,7 +27,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           table: "messages",
         },
         async (payload) => {
-          const newMessage = payload.new as { id: string };
+          const newMessage = payload.new as { id: string; dm_channel_id?: string; channel_id?: string; author_id?: string; content?: string };
           // Fetch full message with author
           const { data } = await supabase
             .from("messages")
@@ -37,6 +39,36 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             const targetChannel = data.channel_id || data.dm_channel_id;
             if (targetChannel === currentChannelId) {
               addMessage(data);
+            }
+
+            // Handle DM unread + bump
+            if (data.dm_channel_id && data.author_id !== user.id) {
+              markDmAsUnread(data.dm_channel_id);
+              bumpDmChannel(data.dm_channel_id);
+            }
+
+            // Handle server mention notifications
+            if (data.channel_id && data.author_id !== user.id && data.content) {
+              const currentUser = useAuthStore.getState().user;
+              const username = currentUser?.username;
+              const hasMention =
+                data.content.includes("@everyone") ||
+                data.content.includes("@here") ||
+                (username && data.content.includes(`@${username}`));
+
+              if (hasMention) {
+                // Find which server this channel belongs to
+                const { data: channelData } = await supabase
+                  .from("channels")
+                  .select("server_id")
+                  .eq("id", data.channel_id)
+                  .single();
+
+                if (channelData) {
+                  const { useNotificationStore } = await import("@/stores/notification-store");
+                  useNotificationStore.getState().addMention(channelData.server_id, data.channel_id);
+                }
+              }
             }
           }
         }
@@ -83,7 +115,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       supabase.removeChannel(statusChannel);
       supabase.removeChannel(punishmentChannel);
     };
-  }, [user, currentChannelId, addMessage]);
+  }, [user, currentChannelId, addMessage, markDmAsUnread, bumpDmChannel]);
 
   return <>{children}</>;
 }
