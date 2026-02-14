@@ -1,20 +1,72 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useMessageStore } from "@/stores/message-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { cn, getStatusColor } from "@/lib/utils";
-import { Users } from "lucide-react";
+import { Users, Plus, Search } from "lucide-react";
 import { UserProfileCard } from "@/components/user-profile-card";
-import { User } from "@/types";
+import { User, FriendRequest } from "@/types";
+import { createClient } from "@/lib/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function DmSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const dmChannels = useMessageStore((s) => s.dmChannels);
+  const createDmChannel = useMessageStore((s) => s.createDmChannel);
   const user = useAuthStore((s) => s.user);
+  const [showNewDm, setShowNewDm] = useState(false);
+  const [friendsList, setFriendsList] = useState<User[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Fetch accepted friends when dialog opens
+  useEffect(() => {
+    if (!showNewDm || !user) return;
+    setLoading(true);
+    const supabase = createClient();
+    supabase
+      .from("friend_requests")
+      .select("*, sender:users!friend_requests_sender_id_fkey(*), receiver:users!friend_requests_receiver_id_fkey(*)")
+      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+      .eq("status", "accepted")
+      .then(({ data }) => {
+        const friends = (data as FriendRequest[] | null)?.map((r) =>
+          r.sender_id === user.id ? r.receiver : r.sender
+        ).filter(Boolean) as User[] || [];
+        setFriendsList(friends);
+        setLoading(false);
+      });
+  }, [showNewDm, user]);
+
+  const filteredFriends = useMemo(() => {
+    if (!searchQuery.trim()) return friendsList;
+    const q = searchQuery.toLowerCase();
+    return friendsList.filter(
+      (f) =>
+        f.display_name?.toLowerCase().includes(q) ||
+        f.username?.toLowerCase().includes(q)
+    );
+  }, [friendsList, searchQuery]);
+
+  const handleStartDm = async (friendId: string) => {
+    const dm = await createDmChannel(friendId);
+    if (dm) {
+      setShowNewDm(false);
+      setSearchQuery("");
+      router.push(`/channels/me/${dm.id}`);
+    }
+  };
 
   return (
     <ScrollArea className="flex-1">
@@ -33,11 +85,75 @@ export function DmSidebar() {
           Friends
         </button>
 
-        <div className="mt-4 px-2">
+        <div className="mt-4 px-2 flex items-center justify-between">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Direct Messages
           </span>
+          <button
+            onClick={() => setShowNewDm(true)}
+            className="text-gray-400 hover:text-white transition-colors"
+            title="New conversation"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
+
+        {/* New DM Dialog */}
+        <Dialog open={showNewDm} onOpenChange={(open) => { setShowNewDm(open); if (!open) setSearchQuery(""); }}>
+          <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-white">New Conversation</DialogTitle>
+            </DialogHeader>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search friends..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {loading ? (
+                <p className="text-sm text-gray-400 text-center py-4">Loading friends...</p>
+              ) : filteredFriends.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  {friendsList.length === 0
+                    ? "No friends yet. Add some first!"
+                    : "No friends match your search."}
+                </p>
+              ) : (
+                filteredFriends.map((friend) => (
+                  <button
+                    key={friend.id}
+                    onClick={() => handleStartDm(friend.id)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-discord-hover transition-colors text-left"
+                  >
+                    <div className="relative">
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={friend.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {friend.display_name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div
+                        className={cn(
+                          "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-darker",
+                          getStatusColor(friend.status)
+                        )}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{friend.display_name}</p>
+                      <p className="text-xs text-gray-400 truncate">@{friend.username}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="mt-2 space-y-0.5">
           {dmChannels.map((dm) => {
