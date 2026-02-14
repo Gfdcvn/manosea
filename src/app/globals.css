@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ======================== */
+/* DARK THEME (default)     */
+/* ======================== */
+:root,
+.theme-dark {
+  --background: #313338;
+  --foreground: #dbdee1;
+  --rc-dark: #1e1f22;
+  --rc-darker: #111214;
+  --rc-channel: #2b2d31;
+  --rc-hover: #35373c;
+  --rc-active: #404249;
+  --rc-sidebar: #2b2d31;
+  --rc-chat: #313338;
+  --rc-input: #383a40;
+  --rc-header: #313338;
+  --rc-border: #1f2023;
+  --rc-muted: #949ba4;
+  --rc-text: #dbdee1;
+  --rc-text-secondary: #b5bac1;
+  --rc-text-tertiary: #949ba4;
+  --scrollbar-thumb: #1a1b1e;
+  --scrollbar-thumb-hover: #2b2d31;
+}
+
+/* ======================== */
+/* LIGHT THEME              */
+/* ======================== */
+.theme-light {
+  --background: #ffffff;
+  --foreground: #313338;
+  --rc-dark: #e3e5e8;
+  --rc-darker: #ebedef;
+  --rc-channel: #f2f3f5;
+  --rc-hover: #e0e1e5;
+  --rc-active: #d5d7db;
+  --rc-sidebar: #f2f3f5;
+  --rc-chat: #ffffff;
+  --rc-input: #ebedef;
+  --rc-header: #f2f3f5;
+  --rc-border: #e0e1e5;
+  --rc-muted: #5c6370;
+  --rc-text: #2e3338;
+  --rc-text-secondary: #4f5660;
+  --rc-text-tertiary: #80848e;
+  --scrollbar-thumb: #c4c9ce;
+  --scrollbar-thumb-hover: #a6aab0;
+}
+
+/* ======================== */
+/* SEPIA THEME              */
+/* ======================== */
+.theme-sepia {
+  --background: #f4edd8;
+  --foreground: #3d3528;
+  --rc-dark: #ddd3b8;
+  --rc-darker: #d1c5a5;
+  --rc-channel: #e8dfca;
+  --rc-hover: #d9cea5;
+  --rc-active: #cfc29a;
+  --rc-sidebar: #e8dfca;
+  --rc-chat: #f4edd8;
+  --rc-input: #e2d8be;
+  --rc-header: #e8dfca;
+  --rc-border: #c9bb96;
+  --rc-muted: #7a7060;
+  --rc-text: #3d3528;
+  --rc-text-secondary: #5a5040;
+  --rc-text-tertiary: #8a7e6a;
+  --scrollbar-thumb: #c4b68e;
+  --scrollbar-thumb-hover: #aa9e78;
+}
+
+/* ======================== */
+/* GRAY THEME               */
+/* ======================== */
+.theme-gray {
+  --background: #3a3d42;
+  --foreground: #d0d3d7;
+  --rc-dark: #2a2d31;
+  --rc-darker: #1d2024;
+  --rc-channel: #33363b;
+  --rc-hover: #414549;
+  --rc-active: #4a4e53;
+  --rc-sidebar: #33363b;
+  --rc-chat: #3a3d42;
+  --rc-input: #44474c;
+  --rc-header: #33363b;
+  --rc-border: #2a2d31;
+  --rc-muted: #8e9399;
+  --rc-text: #d0d3d7;
+  --rc-text-secondary: #a8abb0;
+  --rc-text-tertiary: #8e9399;
+  --scrollbar-thumb: #25282c;
+  --scrollbar-thumb-hover: #33363b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+::selection {
+  background-color: rgba(88, 101, 242, 0.3);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid #5865f2;
+  outline-offset: 2px;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Theme-aware overrides for components that hardcode text-white */
+.theme-light .text-white,
+.theme-sepia .text-white {
+  color: var(--rc-text);
+}
+
+.theme-light .text-gray-200,
+.theme-sepia .text-gray-200 {
+  color: var(--rc-text-secondary);
+}
+
+.theme-light .text-gray-400,
+.theme-sepia .text-gray-400 {
+  color: var(--rc-text-tertiary);
+}
+
+.theme-light .text-gray-500,
+.theme-sepia .text-gray-500 {
+  color: var(--rc-muted);
+}
+
+.theme-light .border-gray-800,
+.theme-sepia .border-gray-800 {
+  border-color: var(--rc-border);
+}
+
+.theme-light .border-gray-700,
+.theme-sepia .border-gray-700 {
+  border-color: var(--rc-border);
+}
