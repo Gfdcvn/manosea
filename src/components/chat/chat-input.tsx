@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useMessageStore } from "@/stores/message-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useServerStore } from "@/stores/server-store";
 import { createClient } from "@/lib/supabase/client";
 import { Smile, PlusCircle, Send } from "lucide-react";
 import { EmojiPicker } from "@/components/chat/emoji-picker";
 import { FileUpload } from "@/components/chat/file-upload";
 import { MAX_FILE_SIZE } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface ChatInputProps {
   channelId: string;
@@ -20,19 +22,137 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionStartPos, setMentionStartPos] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const mentionRef = useRef<HTMLDivElement>(null);
   const sendMessage = useMessageStore((s) => s.sendMessage);
   const sendTyping = useMessageStore((s) => s.sendTyping);
   const settings = useAuthStore((s) => s.settings);
+  const members = useServerStore((s) => s.members);
+
+  // Build mention suggestions list
+  const mentionSuggestions = useMemo(() => {
+    const q = mentionQuery.toLowerCase();
+    const specialItems: { id: string; display_name: string; username: string; avatar_url: string | null; isSpecial: boolean }[] = [];
+
+    if (!isDm) {
+      if ("everyone".includes(q) || !q) {
+        specialItems.push({ id: "everyone", display_name: "@everyone", username: "everyone", avatar_url: null, isSpecial: true });
+      }
+      if ("here".includes(q) || !q) {
+        specialItems.push({ id: "here", display_name: "@here", username: "here", avatar_url: null, isSpecial: true });
+      }
+    }
+
+    const userItems = members
+      .filter((m) => m.user)
+      .map((m) => ({
+        id: m.user!.id,
+        display_name: m.user!.display_name || m.user!.username,
+        username: m.user!.username,
+        avatar_url: m.user!.avatar_url || null,
+        isSpecial: false,
+      }))
+      .filter(
+        (u) =>
+          !q ||
+          u.display_name.toLowerCase().includes(q) ||
+          u.username.toLowerCase().includes(q)
+      );
+
+    return [...specialItems, ...userItems].slice(0, 10);
+  }, [mentionQuery, members, isDm]);
+
+  // Scroll active mention item into view
+  useEffect(() => {
+    if (showMentions && mentionRef.current) {
+      const activeItem = mentionRef.current.children[mentionIndex] as HTMLElement;
+      activeItem?.scrollIntoView({ block: "nearest" });
+    }
+  }, [mentionIndex, showMentions]);
+
+  // Detect @ trigger
+  const detectMention = useCallback((text: string, cursorPos: number) => {
+    // Look backwards from cursor for an unescaped @
+    const beforeCursor = text.slice(0, cursorPos);
+    const atIdx = beforeCursor.lastIndexOf("@");
+    if (atIdx === -1) {
+      setShowMentions(false);
+      return;
+    }
+    // Make sure there's no space between @ and query (except none typed yet)
+    const query = beforeCursor.slice(atIdx + 1);
+    // If there's a space in the query, it's not an active mention
+    if (query.includes(" ") || query.includes("\n")) {
+      setShowMentions(false);
+      return;
+    }
+    // Check that @ is at start or preceded by a space/newline
+    if (atIdx > 0 && !/[\s\n]/.test(beforeCursor[atIdx - 1])) {
+      setShowMentions(false);
+      return;
+    }
+    setMentionStartPos(atIdx);
+    setMentionQuery(query);
+    setMentionIndex(0);
+    setShowMentions(true);
+  }, []);
+
+  const insertMention = useCallback((suggestion: { id: string; display_name: string; username: string; isSpecial: boolean }) => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    const before = content.slice(0, mentionStartPos);
+    const after = content.slice(textarea.selectionStart);
+    const mentionText = suggestion.isSpecial
+      ? `@${suggestion.username} `
+      : `@${suggestion.username} `;
+    const newContent = before + mentionText + after;
+    setContent(newContent);
+    setShowMentions(false);
+    setMentionQuery("");
+    setTimeout(() => {
+      const newPos = before.length + mentionText.length;
+      textarea.selectionStart = textarea.selectionEnd = newPos;
+      textarea.focus();
+    }, 0);
+  }, [content, mentionStartPos]);
 
   const handleSend = async () => {
     if (!content.trim() && !isUploading) return;
+    setShowMentions(false);
     await sendMessage(content.trim(), channelId, isDm);
     setContent("");
     inputRef.current?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Mention navigation
+    if (showMentions && mentionSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length);
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        insertMention(mentionSuggestions[mentionIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowMentions(false);
+        return;
+      }
+    }
+
     const sendMode = settings?.send_mode || "button_or_enter";
 
     if (sendMode === "button_or_enter" && e.key === "Enter" && !e.shiftKey) {
@@ -46,8 +166,20 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
+    const newValue = e.target.value;
+    setContent(newValue);
     sendTyping(channelId);
+    // Detect @ mention
+    const cursorPos = e.target.selectionStart;
+    detectMention(newValue, cursorPos);
+  };
+
+  const handleClick = () => {
+    // Re-detect on click (cursor position change)
+    const textarea = inputRef.current;
+    if (textarea) {
+      detectMention(content, textarea.selectionStart);
+    }
   };
 
   const handleEmojiSelect = (emoji: string) => {
@@ -111,6 +243,45 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
 
   return (
     <div className="px-4 pb-6 pt-1 relative">
+      {/* Mention suggestions popup */}
+      {showMentions && mentionSuggestions.length > 0 && (
+        <div
+          ref={mentionRef}
+          className="absolute bottom-full left-4 right-4 mb-1 bg-discord-darker border border-gray-700 rounded-lg shadow-xl max-h-52 overflow-y-auto z-50"
+        >
+          <div className="px-3 pt-2 pb-1">
+            <p className="text-xs font-semibold text-gray-400 uppercase">Members</p>
+          </div>
+          {mentionSuggestions.map((s, i) => (
+            <button
+              key={s.id}
+              onMouseDown={(e) => { e.preventDefault(); insertMention(s); }}
+              onMouseEnter={() => setMentionIndex(i)}
+              className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-left transition-colors ${
+                i === mentionIndex ? "bg-discord-brand/20 text-white" : "text-gray-300 hover:bg-discord-hover"
+              }`}
+            >
+              {s.isSpecial ? (
+                <div className="w-6 h-6 rounded-full bg-discord-brand/30 flex items-center justify-center text-xs text-discord-brand font-bold">
+                  @
+                </div>
+              ) : (
+                <Avatar className="w-6 h-6">
+                  <AvatarImage src={s.avatar_url || undefined} />
+                  <AvatarFallback className="text-[10px]">
+                    {s.display_name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+              <span className="font-medium">{s.display_name}</span>
+              {!s.isSpecial && (
+                <span className="text-xs text-gray-500">@{s.username}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Emoji Picker Popup */}
       {showEmoji && (
         <div className="absolute bottom-full right-4 mb-2 z-50">
@@ -139,6 +310,7 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
           ref={inputRef}
           value={content}
           onChange={handleChange}
+          onClick={handleClick}
           onKeyDown={handleKeyDown}
           placeholder={`Message ${isDm ? "@" : "#"}${channelName}`}
           rows={1}

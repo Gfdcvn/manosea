@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Hash, Volume2, ChevronDown, Plus } from "lucide-react";
+import { Hash, Volume2, ChevronDown, Plus, Copy, Check, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -40,6 +40,11 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     open: boolean;
   }>({ type: "text", open: false });
   const [channelName, setChannelName] = useState("");
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteExpiry, setInviteExpiry] = useState("7");
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const toggleCategory = (categoryId: string) => {
     setCollapsedCategories((prev) => {
@@ -53,20 +58,57 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     });
   };
 
-  const handleCreateInvite = async () => {
+  const generateInvite = async () => {
+    setInviteLoading(true);
+    setInviteCopied(false);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setInviteLoading(false); return; }
 
     const code = generateInviteCode();
+    const expiryDays = parseInt(inviteExpiry);
+    const expiresAt = expiryDays > 0
+      ? new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
     await supabase.from("server_invites").insert({
       server_id: serverId,
       code,
       created_by: user.id,
+      ...(expiresAt ? { expires_at: expiresAt } : {}),
     });
 
-    navigator.clipboard.writeText(code);
-    alert(`Invite code copied: ${code}`);
+    setInviteCode(code);
+    setInviteLoading(false);
+  };
+
+  const handleCreateInvite = async () => {
+    setInviteCode("");
+    setInviteCopied(false);
+    setInviteExpiry("7");
+    setShowInviteDialog(true);
+    // Auto-generate one
+    setInviteLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setInviteLoading(false); return; }
+
+    const code = generateInviteCode();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from("server_invites").insert({
+      server_id: serverId,
+      code,
+      created_by: user.id,
+      expires_at: expiresAt,
+    });
+    setInviteCode(code);
+    setInviteLoading(false);
+  };
+
+  const handleCopyInvite = () => {
+    navigator.clipboard.writeText(inviteCode);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
   };
 
   const openCreateDialog = (type: "text" | "voice" | "category") => {
@@ -163,6 +205,77 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
           </div>
         ))}
       </div>
+
+      {/* Invite Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Server Invite</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Invite code display */}
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                Invite Code
+              </Label>
+              {inviteLoading ? (
+                <div className="bg-discord-dark rounded-lg px-4 py-3 text-sm text-gray-400 animate-pulse">
+                  Generating...
+                </div>
+              ) : inviteCode ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-discord-dark rounded-lg px-4 py-3 text-white font-mono text-sm select-all">
+                    {inviteCode}
+                  </div>
+                  <Button
+                    onClick={handleCopyInvite}
+                    variant="ghost"
+                    className="shrink-0 px-3"
+                  >
+                    {inviteCopied ? (
+                      <Check className="w-4 h-4 text-discord-green" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+              {inviteCopied && (
+                <p className="text-xs text-discord-green mt-1">Copied to clipboard!</p>
+              )}
+            </div>
+
+            {/* Expiry selector */}
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                Expire After
+              </Label>
+              <select
+                value={inviteExpiry}
+                onChange={(e) => setInviteExpiry(e.target.value)}
+                className="w-full bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-discord-brand"
+              >
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="0">Never</option>
+              </select>
+            </div>
+
+            {/* Generate new button */}
+            <Button
+              onClick={generateInvite}
+              variant="ghost"
+              className="w-full gap-2"
+              disabled={inviteLoading}
+            >
+              <RefreshCw className={`w-4 h-4 ${inviteLoading ? "animate-spin" : ""}`} />
+              Generate New Invite
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Channel/Category Dialog */}
       <Dialog
