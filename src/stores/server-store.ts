@@ -88,6 +88,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
+    // Check if user is suspended or banned
+    const { data: profile } = await supabase.from("users").select("is_suspended, is_banned").eq("id", user.id).single();
+    if (profile?.is_suspended || profile?.is_banned) return null;
+
     const { data: server, error } = await supabase
       .from("servers")
       .insert({ name, icon_url: iconUrl || null, owner_id: user.id })
@@ -127,6 +131,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
+
+    // Check if user is suspended or banned
+    const { data: profile } = await supabase.from("users").select("is_suspended, is_banned").eq("id", user.id).single();
+    if (profile?.is_suspended || profile?.is_banned) return false;
 
     const { data: invite } = await supabase
       .from("server_invites")

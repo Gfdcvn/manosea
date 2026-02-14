@@ -18,6 +18,7 @@ interface AdminState {
     type: string;
     reason: string;
     severity?: number;
+    expiry_days?: number;
     duration_days?: number;
   }) => Promise<void>;
 
@@ -78,11 +79,15 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // expires_at = when the effect ends (duration)
     const expiresAt = data.duration_days
       ? new Date(Date.now() + data.duration_days * 86400000).toISOString()
       : null;
 
-    const becomesPastAt = expiresAt;
+    // becomes_past_at = when punishment drops from standing (expiry)
+    const becomesPastAt = data.expiry_days
+      ? new Date(Date.now() + data.expiry_days * 86400000).toISOString()
+      : null;
 
     await supabase.from("user_punishments").insert({
       user_id: data.user_id,
@@ -96,14 +101,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       popup_shown: false,
     });
 
-    // Update user standing — count active warns/suspends
+    // Update user standing — count active warns/suspends/mutes
     // Include permanent punishments (null becomes_past_at) AND unexpired ones
     const { data: activePunishments } = await supabase
       .from("user_punishments")
       .select("*")
       .eq("user_id", data.user_id)
       .eq("is_active", true)
-      .in("type", ["warn", "suspend"])
+      .in("type", ["warn", "suspend", "mute"])
       .or(`becomes_past_at.is.null,becomes_past_at.gt.${new Date().toISOString()}`);
 
     const standingLevel = Math.min((activePunishments?.length || 0), 4);
@@ -116,15 +121,31 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     const hasOverride = userBadges?.some((ub: { badge?: { affects_standing?: boolean } }) => ub.badge?.affects_standing);
 
+    const updateData: Record<string, unknown> = {
+      standing_level: hasOverride ? 0 : standingLevel,
+    };
+
+    // Set enforcement flags based on punishment type
+    if (data.type === "mute") {
+      updateData.is_muted = true;
+      updateData.mute_reason = data.reason;
+      updateData.mute_end = expiresAt;
+    } else if (data.type === "suspend") {
+      updateData.is_suspended = true;
+      updateData.suspension_reason = data.reason;
+      updateData.suspension_end = expiresAt;
+    } else if (data.type === "ban") {
+      updateData.is_banned = true;
+      updateData.is_suspended = true;
+      updateData.ban_reason = data.reason;
+      updateData.banned_by = user.id;
+      updateData.suspension_reason = data.reason;
+      updateData.suspension_end = expiresAt;
+    }
+
     await supabase
       .from("users")
-      .update({
-        standing_level: hasOverride ? 0 : standingLevel,
-        is_suspended: data.type === "suspend" || data.type === "ban" || standingLevel >= 4,
-        is_banned: data.type === "ban",
-        suspension_reason: data.type === "ban" || data.type === "suspend" ? data.reason : undefined,
-        suspension_end: expiresAt,
-      })
+      .update(updateData)
       .eq("id", data.user_id);
 
     // Send system DM
@@ -150,8 +171,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
 
     if (dmChannelId) {
+      const durationMsg = expiresAt ? `The effect will last until ${new Date(expiresAt).toLocaleDateString()}.` : "The effect is permanent.";
+      const expiryMsg = becomesPastAt ? `This action will leave your standing record at ${new Date(becomesPastAt).toLocaleDateString()}.` : "This action is permanent on your record.";
       await supabase.from("messages").insert({
-        content: `⚠️ You have received a **${data.type}**.\n\nFor the following reason: ${data.reason}.\n${expiresAt ? `This action will expire at ${new Date(expiresAt).toLocaleDateString()}.` : "This action is permanent."}`,
+        content: `⚠️ You have received a **${data.type}**.\n\nFor the following reason: ${data.reason}.\n${durationMsg}\n${expiryMsg}`,
         dm_channel_id: dmChannelId,
         author_id: "00000000-0000-0000-0000-000000000001",
       });
@@ -193,7 +216,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       .select("*")
       .eq("user_id", userId)
       .eq("is_active", true)
-      .in("type", ["warn", "suspend"])
+      .in("type", ["warn", "suspend", "mute"])
       .or(`becomes_past_at.is.null,becomes_past_at.gt.${new Date().toISOString()}`);
 
     const standingLevel = Math.min((activePunishments?.length || 0), 4);
@@ -206,12 +229,29 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     const hasOverride = userBadges?.some((ub: { badge?: { affects_standing?: boolean } }) => ub.badge?.affects_standing);
 
+    // Check if there are still active mute/suspend/ban punishments
+    const { data: remainingEnforcements } = await supabase
+      .from("user_punishments")
+      .select("type")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .in("type", ["mute", "suspend", "ban"])
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+
+    const hasActiveMute = remainingEnforcements?.some((p) => p.type === "mute") || false;
+    const hasActiveSuspend = remainingEnforcements?.some((p) => p.type === "suspend") || false;
+    const hasActiveBan = remainingEnforcements?.some((p) => p.type === "ban") || false;
+
     await supabase
       .from("users")
       .update({
         standing_level: hasOverride ? 0 : standingLevel,
-        is_suspended: standingLevel >= 4,
-        is_banned: false,
+        is_muted: hasActiveMute,
+        is_suspended: hasActiveSuspend || standingLevel >= 4,
+        is_banned: hasActiveBan,
+        ...(!hasActiveMute ? { mute_reason: null, mute_end: null } : {}),
+        ...(!hasActiveSuspend && standingLevel < 4 ? { suspension_reason: null, suspension_end: null } : {}),
+        ...(!hasActiveBan ? { ban_reason: null, banned_by: null } : {}),
       })
       .eq("id", userId);
 

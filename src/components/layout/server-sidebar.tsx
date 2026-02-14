@@ -17,6 +17,7 @@ import { ExploreServersModal } from "@/components/modals/explore-servers-modal";
 import { createClient } from "@/lib/supabase/client";
 import { ServerBadge } from "@/types";
 import { useNotificationStore } from "@/stores/notification-store";
+import { useMessageStore } from "@/stores/message-store";
 
 export function ServerSidebar() {
   const router = useRouter();
@@ -26,8 +27,10 @@ export function ServerSidebar() {
   const [serverBadgesMap, setServerBadgesMap] = useState<Record<string, ServerBadge[]>>({});
   const [showExplore, setShowExplore] = useState(false);
   const serverMentions = useNotificationStore((s) => s.serverMentions);
+  const unreadDmChannels = useMessageStore((s) => s.unreadDmChannels);
 
   const isDmActive = pathname?.startsWith("/channels/me");
+  const hasUnreadDms = unreadDmChannels.size > 0;
 
   // Fetch badges for all servers
   useEffect(() => {
@@ -57,13 +60,18 @@ export function ServerSidebar() {
             <button
               onClick={() => router.push("/channels/me")}
               className={cn(
-                "w-12 h-12 rounded-[24px] flex items-center justify-center transition-all duration-200 hover:rounded-[16px]",
+                "w-12 h-12 rounded-[24px] flex items-center justify-center transition-all duration-200 hover:rounded-[16px] relative",
                 isDmActive
                   ? "bg-discord-brand rounded-[16px] text-white"
                   : "bg-discord-channel text-gray-300 hover:bg-discord-brand hover:text-white"
               )}
             >
               <MessageCircle className="w-6 h-6" />
+              {hasUnreadDms && !isDmActive && (
+                <div className="absolute -bottom-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-discord-darker">
+                  {unreadDmChannels.size}
+                </div>
+              )}
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">Direct Messages</TooltipContent>

@@ -1,6 +1,6 @@
 export type UserStatus = "online" | "idle" | "dnd" | "invisible" | "offline";
 export type UserRole = "user" | "admin" | "superadmin";
-export type PunishmentType = "warn" | "suspend" | "ban";
+export type PunishmentType = "warn" | "mute" | "suspend" | "ban";
 export type BadgeType = "user" | "server";
 export type ChannelType = "text" | "voice";
 export type SendMode = "button_only" | "button_or_enter" | "button_or_shift_enter";
@@ -19,8 +19,13 @@ export interface User {
   standing_level: number;
   is_banned: boolean;
   is_suspended: boolean;
+  is_muted: boolean;
   suspension_reason: string | null;
   suspension_end: string | null;
+  mute_reason: string | null;
+  mute_end: string | null;
+  ban_reason: string | null;
+  banned_by: string | null;
   is_bot: boolean;
   is_messagable: boolean;
   bot_token: string | null;

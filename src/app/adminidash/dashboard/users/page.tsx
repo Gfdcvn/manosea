@@ -46,6 +46,7 @@ export default function AdminUsersPage() {
   const [showPunishDialog, setShowPunishDialog] = useState(false);
   const [punishType, setPunishType] = useState<string>("warn");
   const [punishReason, setPunishReason] = useState("");
+  const [punishExpiry, setPunishExpiry] = useState("");
   const [punishDuration, setPunishDuration] = useState("");
   const [punishingUserId, setPunishingUserId] = useState<string | null>(null);
 
@@ -75,13 +76,15 @@ export default function AdminUsersPage() {
 
     await issuePunishment({
       user_id: punishingUserId,
-      type: punishType as "warn" | "suspend" | "ban",
+      type: punishType as "warn" | "mute" | "suspend" | "ban",
       reason: punishReason,
+      expiry_days: punishExpiry ? parseInt(punishExpiry) : undefined,
       duration_days: punishDuration ? parseInt(punishDuration) : undefined,
     });
 
     setShowPunishDialog(false);
     setPunishReason("");
+    setPunishExpiry("");
     setPunishDuration("");
     setPunishType("warn");
     fetchAllUsers();
@@ -297,7 +300,8 @@ export default function AdminUsersPage() {
                     {selectedUser.is_bot && <span className="text-xs px-1.5 py-0.5 bg-discord-brand/20 text-discord-brand rounded">Bot</span>}
                     {selectedUser.is_banned && <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded">Banned</span>}
                     {selectedUser.is_suspended && <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">Suspended</span>}
-                    {!selectedUser.is_bot && !selectedUser.is_banned && !selectedUser.is_suspended && (
+                    {selectedUser.is_muted && <span className="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-400 rounded">Muted</span>}
+                    {!selectedUser.is_bot && !selectedUser.is_banned && !selectedUser.is_suspended && !selectedUser.is_muted && (
                       <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">Active</span>
                     )}
                   </div>
@@ -454,7 +458,6 @@ export default function AdminUsersPage() {
                 <SelectContent>
                   <SelectItem value="warn">Warning</SelectItem>
                   <SelectItem value="mute">Mute</SelectItem>
-                  <SelectItem value="kick">Kick</SelectItem>
                   <SelectItem value="ban">Ban</SelectItem>
                   <SelectItem value="suspend">Suspend</SelectItem>
                 </SelectContent>
@@ -472,16 +475,31 @@ export default function AdminUsersPage() {
 
             <div>
               <Label className="text-xs font-bold text-gray-300 uppercase">
-                Duration (days, leave empty for permanent)
+                Expiry (days — when punishment leaves standing record, empty = permanent)
               </Label>
               <Input
                 type="number"
-                value={punishDuration}
-                onChange={(e) => setPunishDuration(e.target.value)}
-                placeholder="24"
+                value={punishExpiry}
+                onChange={(e) => setPunishExpiry(e.target.value)}
+                placeholder="30"
                 min="1"
               />
             </div>
+
+            {(punishType === "mute" || punishType === "ban" || punishType === "suspend") && (
+              <div>
+                <Label className="text-xs font-bold text-gray-300 uppercase">
+                  Duration (days — how long the {punishType} effect lasts, empty = permanent)
+                </Label>
+                <Input
+                  type="number"
+                  value={punishDuration}
+                  onChange={(e) => setPunishDuration(e.target.value)}
+                  placeholder="7"
+                  min="1"
+                />
+              </div>
+            )}
 
             <div className="flex justify-end gap-3">
               <Button variant="ghost" onClick={() => setShowPunishDialog(false)}>

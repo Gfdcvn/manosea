@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useServerStore } from "@/stores/server-store";
 import { useMessageStore } from "@/stores/message-store";
 import { RealtimeProvider } from "@/components/realtime-provider";
+import { useRouter } from "next/navigation";
 
 export default function ChannelsLayout({
   children,
@@ -16,9 +17,17 @@ export default function ChannelsLayout({
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const fetchServers = useServerStore((s) => s.fetchServers);
   const fetchDmChannels = useMessageStore((s) => s.fetchDmChannels);
+  const router = useRouter();
+
+  // Ban redirect
+  useEffect(() => {
+    if (isInitialized && user?.is_banned) {
+      router.replace("/banned");
+    }
+  }, [isInitialized, user, router]);
 
   useEffect(() => {
-    if (isInitialized && user) {
+    if (isInitialized && user && !user.is_banned) {
       fetchServers();
       fetchDmChannels();
     }

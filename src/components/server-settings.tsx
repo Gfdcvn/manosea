@@ -167,7 +167,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-discord-dark/95">
+    <div className="fixed inset-0 z-50 flex bg-discord-chat">
       {/* Sidebar */}
       <div className="w-56 bg-discord-channel flex flex-col border-r border-gray-800">
         <div className="p-4 border-b border-gray-800">

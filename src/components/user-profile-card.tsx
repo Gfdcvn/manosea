@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, UserBadge } from "@/types";
+import { User, UserBadge, Punishment } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Headphones, Hammer, Drama } from "lucide-react";
 
 interface UserProfileCardProps {
   user: User;
@@ -31,6 +32,7 @@ export function UserProfileCard({
   align = "start",
 }: UserProfileCardProps) {
   const [badges, setBadges] = useState<UserBadge[]>([]);
+  const [activePunishments, setActivePunishments] = useState<Punishment[]>([]);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -45,7 +47,20 @@ export function UserProfileCard({
       setBadges((data as UserBadge[]) || []);
     };
 
+    const fetchPunishments = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("user_punishments")
+        .select("*, issuer:users!user_punishments_issued_by_fkey(display_name, username)")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .in("type", ["mute", "suspend", "ban"])
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+      setActivePunishments((data as Punishment[]) || []);
+    };
+
     fetchBadges();
+    fetchPunishments();
   }, [open, user.id]);
 
   const statusLabel = (status: string) => {
@@ -129,6 +144,82 @@ export function UserProfileCard({
                     BOT
                   </span>
                 )}
+                {/* Punishment icons */}
+                {(() => {
+                  const mutePunishment = activePunishments.find((p) => p.type === "mute");
+                  const suspendPunishment = activePunishments.find((p) => p.type === "suspend");
+                  const banPunishment = activePunishments.find((p) => p.type === "ban");
+                  
+                  const getDaysLeft = (expiresAt: string | null) => {
+                    if (!expiresAt) return "never (permanent)";
+                    const diff = new Date(expiresAt).getTime() - Date.now();
+                    if (diff <= 0) return "soon";
+                    const days = Math.ceil(diff / 86400000);
+                    return `${days} day${days !== 1 ? "s" : ""}`;
+                  };
+
+                  return (
+                    <>
+                      {mutePunishment && (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
+                                <Headphones className="w-3.5 h-3.5 text-red-500" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]"
+                            >
+                              <p className="text-sm font-semibold text-red-400">This user is muted</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Reason: {mutePunishment.reason}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">Will be undone in {getDaysLeft(mutePunishment.expires_at)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {suspendPunishment && (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
+                                <Hammer className="w-3.5 h-3.5 text-red-500" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]"
+                            >
+                              <p className="text-sm font-semibold text-red-400">This user is suspended</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Reason: {suspendPunishment.reason}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">Will be undone in {getDaysLeft(suspendPunishment.expires_at)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {banPunishment && (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
+                                <Drama className="w-3.5 h-3.5 text-red-500" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]"
+                            >
+                              <p className="text-sm font-semibold text-red-400">This user is banned</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Reason: {banPunishment.reason}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">Will be undone in {getDaysLeft(banPunishment.expires_at)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm text-gray-400">@{user.username}</p>

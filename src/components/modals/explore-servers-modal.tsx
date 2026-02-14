@@ -126,7 +126,7 @@ export function ExploreServersModal({ open, onClose }: ExploreServersModalProps)
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-discord-dark/98">
+    <div className="fixed inset-0 z-50 flex flex-col bg-discord-chat">
       {/* Header */}
       <div className="h-14 border-b border-gray-800 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">

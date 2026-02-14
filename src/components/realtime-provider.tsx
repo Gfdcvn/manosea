@@ -11,6 +11,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const addMessage = useMessageStore((s) => s.addMessage);
   const markDmAsUnread = useMessageStore((s) => s.markDmAsUnread);
   const bumpDmChannel = useMessageStore((s) => s.bumpDmChannel);
+  const fetchDmChannels = useMessageStore((s) => s.fetchDmChannels);
 
   useEffect(() => {
     if (!user) return;
@@ -110,12 +111,33 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       )
       .subscribe();
 
+    // Subscribe to new DM channels (so new DMs appear without refresh)
+    const dmChannelSub = supabase
+      .channel("dm-channels-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "dm_channels",
+        },
+        (payload) => {
+          const newDm = payload.new as { user1_id?: string; user2_id?: string };
+          // Only refresh if this DM involves the current user
+          if (newDm.user1_id === user.id || newDm.user2_id === user.id) {
+            fetchDmChannels();
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(statusChannel);
       supabase.removeChannel(punishmentChannel);
+      supabase.removeChannel(dmChannelSub);
     };
-  }, [user, currentChannelId, addMessage, markDmAsUnread, bumpDmChannel]);
+  }, [user, currentChannelId, addMessage, markDmAsUnread, bumpDmChannel, fetchDmChannels]);
 
   return <>{children}</>;
 }
