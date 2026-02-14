@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore, Theme } from "@/stores/theme-store";
+import { UserBadge, Punishment } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
-import { X, Upload, Check, Mail, Lock, Trash2 } from "lucide-react";
+import { getStandingInfo } from "@/lib/utils";
+import { X, Upload, Check, Mail, Lock, Trash2, Shield, Award } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+
 
 const PRESET_COLORS = [
   "#5865f2", "#57f287", "#fee75c", "#eb459e", "#ed4245",
@@ -70,10 +73,8 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [profileColor, setProfileColor] = useState<string | null>(null);
   const [customColor, setCustomColor] = useState("#5865f2");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [sendMode, setSendMode] = useState<string>("button_or_enter");
-  const [saving, setSaving] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -84,6 +85,9 @@ export default function SettingsPage() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
+  const [punishments, setPunishments] = useState<Punishment[]>([]);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -100,88 +104,91 @@ export default function SettingsPage() {
     }
   }, [user, settings]);
 
-  const hasChanges =
-    !!user &&
-    !!settings &&
-    (
-      displayName !== (user.display_name || "") ||
-      bio !== (user.about_me || "") ||
-      (profileColor ?? null) !== (user.profile_color ?? null) ||
-      avatarFile !== null ||
-      sendMode !== (settings.send_mode || "button_or_enter")
-    );
-
-  const handleSave = async () => {
+  // Fetch badges and punishments
+  useEffect(() => {
     if (!user) return;
-    setSaving(true);
+    const supabase = createClient();
 
-    try {
-      let avatarUrl = user.avatar_url;
+    supabase
+      .from("user_badges")
+      .select("*, badge:badges(*)")
+      .eq("user_id", user.id)
+      .then(({ data }) => setBadges((data as UserBadge[]) || []));
 
-      if (avatarFile) {
-        const supabase = createClient();
-        const ext = avatarFile.name.split(".").pop();
-        const path = `${user.id}/avatar.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(path, avatarFile, { upsert: true });
+    supabase
+      .from("user_punishments")
+      .select("*, issuer:users!user_punishments_issued_by_fkey(*)")
+      .eq("user_id", user.id)
+      .order("issued_at", { ascending: false })
+      .then(({ data }) => setPunishments((data as Punishment[]) || []));
+  }, [user]);
 
-        if (!uploadError) {
-          const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
-          avatarUrl = publicUrl;
-        }
-      }
+  // Flash a brief "Saved!" indicator
+  const flashSaved = useCallback(() => {
+    setSaveStatus("Saved!");
+    setTimeout(() => setSaveStatus(null), 1500);
+  }, []);
 
-      await updateProfile({
-        display_name: displayName,
-        about_me: bio,
-        avatar_url: avatarUrl,
-        profile_color: profileColor,
-      });
+  // Auto-save profile field
+  const saveField = useCallback(async (field: string, value: unknown) => {
+    if (!user) return;
+    await updateProfile({ [field]: value });
+    flashSaved();
+  }, [user, updateProfile, flashSaved]);
 
-      await updateSettings({
-        send_mode: sendMode as "button_only" | "button_or_enter" | "button_or_shift_enter",
-      });
+  // Auto-save on profile color change
+  const saveProfileColor = useCallback(async (color: string | null) => {
+    setProfileColor(color);
+    if (color) setCustomColor(color);
+    if (!user) return;
+    await updateProfile({ profile_color: color });
+    flashSaved();
+  }, [user, updateProfile, flashSaved]);
 
-      setAvatarFile(null);
-    } catch (err) {
-      console.error("Failed to save settings:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Auto-save send mode
+  const handleSendModeChange = useCallback(async (mode: string) => {
+    setSendMode(mode);
+    await updateSettings({ send_mode: mode as "button_only" | "button_or_enter" | "button_or_shift_enter" });
+    flashSaved();
+  }, [updateSettings, flashSaved]);
 
-  const handleRevert = () => {
-    if (user) {
-      setDisplayName(user.display_name || "");
-      setBio(user.about_me || "");
-      setProfileColor(user.profile_color || null);
-      if (user.profile_color) setCustomColor(user.profile_color);
-      setAvatarPreview(user.avatar_url || null);
-      setAvatarFile(null);
-    }
-    if (settings) {
-      setSendMode(settings.send_mode || "button_or_enter");
-    }
-  };
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onload = () => setAvatarPreview(reader.result as string);
-      reader.readAsDataURL(file);
+    if (!file || !user) return;
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    // Auto-upload avatar
+    const supabase = createClient();
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/avatar.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      await updateProfile({ avatar_url: publicUrl });
+      flashSaved();
     }
   };
 
   if (!user) return null;
 
+  const standing = getStandingInfo(user.standing_level);
+
   return (
     <div className="flex-1 flex bg-discord-chat overflow-hidden">
-      <div className="max-w-2xl mx-auto w-full py-10 px-6 overflow-y-auto">
+      <div className="max-w-2xl mx-auto w-full py-10 px-6 overflow-y-auto pb-20">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-white">User Settings</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white">User Settings</h1>
+            {saveStatus && (
+              <span className="text-xs text-discord-green bg-discord-green/10 px-2 py-1 rounded-full animate-in fade-in-0 zoom-in-95">
+                {saveStatus}
+              </span>
+            )}
+          </div>
           <button
             onClick={() => router.push("/channels/me")}
             className="p-2 bg-discord-active rounded-full hover:bg-discord-hover text-gray-400 hover:text-white"
@@ -193,170 +200,213 @@ export default function SettingsPage() {
         <Tabs defaultValue="profile">
           <TabsList className="mb-6">
             <TabsTrigger value="profile">My Account</TabsTrigger>
+            <TabsTrigger value="standing">Standing</TabsTrigger>
             <TabsTrigger value="behaviour">Behaviour</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
-            <div className="bg-discord-darker rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Profile</h2>
-              
-              {/* Avatar */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="relative group">
-                  <Avatar className="w-20 h-20">
-                    <AvatarImage src={avatarPreview || undefined} />
-                    <AvatarFallback className="text-2xl">
-                      {displayName?.charAt(0) || user.username?.charAt(0) || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <label className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-                    <Upload className="w-5 h-5 text-white" />
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                    />
-                  </label>
-                </div>
-                <div>
-                  <p className="text-white font-semibold">{user.display_name}</p>
-                  <p className="text-gray-400 text-sm">@{user.username}</p>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Display Name */}
-              <div className="mb-4">
-                <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
-                  Display Name
-                </Label>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  maxLength={32}
-                />
-              </div>
-
-              {/* Bio */}
-              <div className="mb-4">
-                <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
-                  About Me
-                </Label>
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  className="w-full h-24 bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-discord-brand"
-                  maxLength={190}
-                  placeholder="Tell us about yourself"
-                />
-                <p className="text-xs text-gray-500 mt-1">{bio.length}/190</p>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Profile Color */}
-              <div className="mb-4">
-                <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
-                  Profile Color
-                </Label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Choose a color for your profile accent
-                </p>
-
-                {/* Preset swatches */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {PRESET_COLORS.map((color, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setProfileColor(color);
-                        if (color) setCustomColor(color);
-                      }}
-                      className="w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center"
-                      style={{
-                        backgroundColor: color || "transparent",
-                        borderColor: profileColor === color ? "#ffffff" : color || "#4a4d52",
-                        transform: profileColor === color ? "scale(1.15)" : "scale(1)",
-                      }}
-                      title={color || "No color"}
-                    >
-                      {profileColor === color && (
-                        <Check className="w-4 h-4" style={{ color: color ? "#fff" : "#999" }} />
-                      )}
-                      {!color && profileColor !== color && (
-                        <X className="w-3 h-3 text-gray-500" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Custom color input */}
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <input
-                      type="color"
-                      value={customColor}
-                      onChange={(e) => {
-                        setCustomColor(e.target.value);
-                        setProfileColor(e.target.value);
-                      }}
-                      className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
-                    />
+            <div className="space-y-6">
+              <div className="bg-discord-darker rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Profile</h2>
+                
+                {/* Avatar */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="relative group">
+                    <Avatar className="w-20 h-20">
+                      <AvatarImage src={avatarPreview || undefined} />
+                      <AvatarFallback className="text-2xl">
+                        {displayName?.charAt(0) || user.username?.charAt(0) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <label className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                      <Upload className="w-5 h-5 text-white" />
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                      />
+                    </label>
                   </div>
-                  <div className="flex-1">
-                    <Input
-                      value={customColor}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCustomColor(val);
-                        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                          setProfileColor(val);
-                        }
-                      }}
-                      onBlur={() => {
-                        if (/^#[0-9A-Fa-f]{6}$/.test(customColor)) {
-                          setProfileColor(customColor);
-                        }
-                      }}
-                      placeholder="#5865f2"
-                      maxLength={7}
-                      className="font-mono text-sm"
-                    />
+                  <div>
+                    <p className="text-white font-semibold">{user.display_name}</p>
+                    <p className="text-gray-400 text-sm">@{user.username}</p>
                   </div>
                 </div>
 
-                {/* Preview */}
-                {profileColor && (
-                  <div
-                    className="mt-3 h-2 rounded-full"
-                    style={{ backgroundColor: profileColor }}
+                <Separator className="my-4" />
+
+                {/* Display Name - saves on blur */}
+                <div className="mb-4">
+                  <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                    Display Name
+                  </Label>
+                  <Input
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    onBlur={() => {
+                      if (displayName.trim() && displayName !== (user.display_name || "")) {
+                        saveField("display_name", displayName.trim());
+                      }
+                    }}
+                    maxLength={32}
                   />
+                </div>
+
+                {/* Bio - saves on blur */}
+                <div className="mb-4">
+                  <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                    About Me
+                  </Label>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    onBlur={() => {
+                      if (bio !== (user.about_me || "")) {
+                        saveField("about_me", bio);
+                      }
+                    }}
+                    className="w-full h-24 bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-discord-brand"
+                    maxLength={190}
+                    placeholder="Tell us about yourself"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{bio.length}/190</p>
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Profile Color - saves on click */}
+                <div className="mb-4">
+                  <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                    Profile Color
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Choose a color for your profile accent
+                  </p>
+
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {PRESET_COLORS.map((color, i) => (
+                      <button
+                        key={i}
+                        onClick={() => saveProfileColor(color)}
+                        className="w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center"
+                        style={{
+                          backgroundColor: color || "transparent",
+                          borderColor: profileColor === color ? "#ffffff" : color || "#4a4d52",
+                          transform: profileColor === color ? "scale(1.15)" : "scale(1)",
+                        }}
+                        title={color || "No color"}
+                      >
+                        {profileColor === color && (
+                          <Check className="w-4 h-4" style={{ color: color ? "#fff" : "#999" }} />
+                        )}
+                        {!color && profileColor !== color && (
+                          <X className="w-3 h-3 text-gray-500" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={customColor}
+                        onChange={(e) => {
+                          setCustomColor(e.target.value);
+                          setProfileColor(e.target.value);
+                        }}
+                        onBlur={() => {
+                          if ((profileColor ?? null) !== (user.profile_color ?? null)) {
+                            saveField("profile_color", profileColor);
+                          }
+                        }}
+                        className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        value={customColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomColor(val);
+                          if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                            setProfileColor(val);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (/^#[0-9A-Fa-f]{6}$/.test(customColor) && (profileColor ?? null) !== (user.profile_color ?? null)) {
+                            saveField("profile_color", profileColor);
+                          }
+                        }}
+                        placeholder="#5865f2"
+                        maxLength={7}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {profileColor && (
+                    <div
+                      className="mt-3 h-2 rounded-full"
+                      style={{ backgroundColor: profileColor }}
+                    />
+                  )}
+                </div>
+
+                <Separator className="my-4" />
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs font-bold text-gray-300 uppercase">Username</Label>
+                    <p className="text-white text-sm mt-1">{user.username}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-bold text-gray-300 uppercase">Email</Label>
+                    <p className="text-white text-sm mt-1">{user.email}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-bold text-gray-300 uppercase">Role</Label>
+                    <p className="text-white text-sm mt-1 capitalize">{user.role}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Badges Section */}
+              <div className="bg-discord-darker rounded-lg p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Award className="w-5 h-5 text-discord-brand" />
+                  <h2 className="text-lg font-semibold text-white">Badges & Awards</h2>
+                </div>
+                {badges.length === 0 ? (
+                  <p className="text-sm text-gray-400">You don&apos;t have any badges yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {badges.map((ub) => (
+                      <div
+                        key={ub.id}
+                        className="flex items-center gap-3 bg-discord-dark rounded-lg p-3"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-discord-channel flex items-center justify-center text-xl">
+                          {ub.badge?.icon || "\u2B50"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{ub.badge?.name || "Badge"}</p>
+                          {ub.badge?.description && (
+                            <p className="text-xs text-gray-400 truncate">{ub.badge.description}</p>
+                          )}
+                          <p className="text-[10px] text-gray-500">
+                            Awarded {new Date(ub.assigned_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              <Separator className="my-4" />
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-xs font-bold text-gray-300 uppercase">Username</Label>
-                  <p className="text-white text-sm mt-1">{user.username}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-bold text-gray-300 uppercase">Email</Label>
-                  <p className="text-white text-sm mt-1">{user.email}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-bold text-gray-300 uppercase">Role</Label>
-                  <p className="text-white text-sm mt-1 capitalize">{user.role}</p>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Account Actions */}
-              <div>
+              {/* Account Management */}
+              <div className="bg-discord-darker rounded-lg p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Account Management</h2>
                 <div className="space-y-3">
                   <button
@@ -394,6 +444,120 @@ export default function SettingsPage() {
             </div>
           </TabsContent>
 
+          {/* Standing Tab */}
+          <TabsContent value="standing">
+            <div className="space-y-6">
+              {/* Standing Level */}
+              <div className="bg-discord-darker rounded-lg p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="w-5 h-5" style={{ color: standing.color }} />
+                  <h2 className="text-lg font-semibold text-white">Account Standing</h2>
+                </div>
+
+                <div className="flex items-center gap-4 mb-4">
+                  <div
+                    className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold text-white"
+                    style={{ backgroundColor: standing.color }}
+                  >
+                    {user.standing_level}
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold" style={{ color: standing.color }}>
+                      {standing.title}
+                    </p>
+                    <p className="text-sm text-gray-400">{standing.description}</p>
+                  </div>
+                </div>
+
+                {/* Standing bar */}
+                <div className="mb-2">
+                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>Perfect</span>
+                    <span>Suspended</span>
+                  </div>
+                  <div className="h-3 bg-discord-dark rounded-full overflow-hidden flex">
+                    {[0, 1, 2, 3, 4].map((level) => {
+                      const info = getStandingInfo(level);
+                      return (
+                        <div
+                          key={level}
+                          className="h-full flex-1 transition-opacity"
+                          style={{
+                            backgroundColor: info.color,
+                            opacity: level <= user.standing_level ? 1 : 0.15,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {user.is_suspended && (
+                  <div className="mt-4 bg-discord-red/10 border border-discord-red/20 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-discord-red">Account Suspended</p>
+                    {user.suspension_reason && (
+                      <p className="text-sm text-gray-300 mt-1">Reason: {user.suspension_reason}</p>
+                    )}
+                    {user.suspension_end && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Until: {new Date(user.suspension_end).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Punishment History */}
+              <div className="bg-discord-darker rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Punishment History</h2>
+                {punishments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Shield className="w-12 h-12 text-discord-green mx-auto mb-3 opacity-50" />
+                    <p className="text-sm text-gray-400">Clean record! No punishments on file.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {punishments.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`rounded-lg p-4 border ${
+                          p.is_active
+                            ? "bg-discord-red/5 border-discord-red/20"
+                            : "bg-discord-dark border-gray-700/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${
+                              p.type === "warn" ? "bg-discord-yellow/20 text-discord-yellow" :
+                              p.type === "suspend" ? "bg-orange-500/20 text-orange-400" :
+                              "bg-discord-red/20 text-discord-red"
+                            }`}>
+                              {p.type}
+                            </span>
+                            {p.is_active && (
+                              <span className="text-[10px] bg-discord-red/20 text-discord-red px-1.5 py-0.5 rounded">ACTIVE</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {new Date(p.issued_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-300">{p.reason}</p>
+                        {p.issuer && (
+                          <p className="text-xs text-gray-500 mt-1">By: {p.issuer.display_name}</p>
+                        )}
+                        {p.expires_at && (
+                          <p className="text-xs text-gray-500">Expires: {new Date(p.expires_at).toLocaleDateString()}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="behaviour">
             <div className="bg-discord-darker rounded-lg p-6">
               <h2 className="text-lg font-semibold text-white mb-4">Message Behaviour</h2>
@@ -405,7 +569,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-400 mb-3">
                   How messages are sent in chat
                 </p>
-                <Select value={sendMode} onValueChange={setSendMode}>
+                <Select value={sendMode} onValueChange={handleSendModeChange}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -529,21 +693,6 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Confirm Bar */}
-      {hasChanges && (
-        <div className="fixed bottom-0 left-0 right-0 bg-discord-darker border-t border-gray-700 p-3 flex items-center justify-between px-6 z-50 animate-in slide-in-from-bottom-2">
-          <p className="text-sm text-white">Careful — you have unsaved changes!</p>
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={handleRevert}>
-              Revert
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Change Email Dialog */}
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
