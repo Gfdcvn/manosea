@@ -63,6 +63,18 @@ const THEME_OPTIONS: { id: Theme; label: string; description: string; preview: {
     description: "Neutral and understated",
     preview: { bg: "#2a2d31", sidebar: "#33363b", chat: "#3a3d42", text: "#d0d3d7" },
   },
+  {
+    id: "blue",
+    label: "Blue",
+    description: "Cool, deep blue tones",
+    preview: { bg: "#0f1923", sidebar: "#162030", chat: "#1a2332", text: "#d0dae8" },
+  },
+  {
+    id: "purple",
+    label: "Purple",
+    description: "Rich, royal purple vibes",
+    preview: { bg: "#180f26", sidebar: "#1f1630", chat: "#231a33", text: "#dcd0ea" },
+  },
 ];
 
 export default function SettingsPage() {

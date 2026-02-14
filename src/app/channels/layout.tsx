@@ -27,8 +27,9 @@ export default function ChannelsLayout({
   if (!isInitialized) {
     return (
       <div className="h-screen flex items-center justify-center bg-discord-dark">
-        <div className="animate-pulse text-discord-brand text-2xl font-bold">
-          Loading Ricord...
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-discord-brand border-t-transparent animate-spin" />
+          <p className="text-discord-brand text-lg font-semibold animate-pulse">Loading Ricord...</p>
         </div>
       </div>
     );

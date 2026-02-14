@@ -17,7 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // Apply theme class on mount and changes
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove("theme-dark", "theme-light", "theme-sepia", "theme-gray");
+    root.classList.remove("theme-dark", "theme-light", "theme-sepia", "theme-gray", "theme-blue", "theme-purple");
     root.classList.add(`theme-${theme}`);
     if (theme === "light" || theme === "sepia") {
       root.classList.remove("dark");

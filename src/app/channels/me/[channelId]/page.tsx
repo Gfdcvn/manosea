@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMessageStore } from "@/stores/message-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { createClient } from "@/lib/supabase/client";
 import { ChatArea } from "@/components/chat/chat-area";
 import { User } from "@/types";
-import { useState } from "react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export default function DmChannelPage() {
   const params = useParams();
@@ -15,11 +15,13 @@ export default function DmChannelPage() {
   const user = useAuthStore((s) => s.user);
   const { fetchMessages, setCurrentChannelId, setCurrentDmChannel } = useMessageStore();
   const [otherUser, setOtherUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!channelId || !user) return;
 
     const load = async () => {
+      setLoading(true);
       const supabase = createClient();
       const { data: dm } = await supabase
         .from("dm_channels")
@@ -35,6 +37,7 @@ export default function DmChannelPage() {
 
       setCurrentChannelId(channelId);
       await fetchMessages(channelId, true);
+      setLoading(false);
     };
 
     load();
@@ -44,6 +47,10 @@ export default function DmChannelPage() {
       setCurrentDmChannel(null);
     };
   }, [channelId, user, fetchMessages, setCurrentChannelId, setCurrentDmChannel]);
+
+  if (loading) {
+    return <LoadingSpinner fullPage size="lg" label="Loading conversation..." />;
+  }
 
   return (
     <ChatArea

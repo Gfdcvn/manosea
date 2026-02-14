@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useServerStore } from "@/stores/server-store";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export default function ServerPage() {
   const router = useRouter();
   const params = useParams();
   const serverId = params.serverId as string;
   const channels = useServerStore((s) => s.channels);
+  const isLoading = useServerStore((s) => s.isLoading);
 
   useEffect(() => {
     // Auto-redirect to first text channel
@@ -17,6 +19,10 @@ export default function ServerPage() {
       router.replace(`/channels/${serverId}/${textChannel.id}`);
     }
   }, [channels, serverId, router]);
+
+  if (isLoading || channels.length === 0) {
+    return <LoadingSpinner fullPage size="lg" label="Loading server..." />;
+  }
 
   return (
     <div className="flex-1 flex items-center justify-center bg-discord-chat">

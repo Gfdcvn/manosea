@@ -9,6 +9,7 @@ import { Hash, AtSign } from "lucide-react";
 import { User } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserProfileCard } from "@/components/user-profile-card";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 interface ChatAreaProps {
   channelName: string;
@@ -80,8 +81,8 @@ export function ChatArea({ channelName, channelId, isDm = false, otherUser }: Ch
         className="flex-1 overflow-y-auto px-4"
       >
         {isLoading && (
-          <div className="flex items-center justify-center py-4">
-            <div className="animate-pulse text-discord-muted">Loading messages...</div>
+          <div className="flex items-center justify-center py-8">
+            <LoadingSpinner size="md" label="Loading messages..." />
           </div>
         )}
 

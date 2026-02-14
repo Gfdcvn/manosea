@@ -13,6 +13,7 @@ import { cn, getStatusColor } from "@/lib/utils";
 import { Check, X, MessageSquare } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UserProfileCard } from "@/components/user-profile-card";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export function FriendsList() {
   const user = useAuthStore((s) => s.user);
@@ -24,6 +25,7 @@ export function FriendsList() {
   const [addUsername, setAddUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -31,6 +33,7 @@ export function FriendsList() {
   }, [user]);
 
   const fetchFriends = async () => {
+    setLoading(true);
     const supabase = createClient();
     if (!user) return;
 
@@ -48,6 +51,7 @@ export function FriendsList() {
         requests.filter((r) => r.status === "pending" && r.sender_id === user.id)
       );
     }
+    setLoading(false);
   };
 
   const handleSendRequest = async () => {
@@ -109,6 +113,14 @@ export function FriendsList() {
     if (request.sender_id === user?.id) return request.receiver;
     return request.sender;
   };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <LoadingSpinner size="lg" label="Loading friends..." />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 p-6">

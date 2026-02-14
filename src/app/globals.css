@@ -99,6 +99,54 @@
   --scrollbar-thumb-hover: #33363b;
 }
 
+/* ======================== */
+/* BLUE THEME               */
+/* ======================== */
+.theme-blue {
+  --background: #1a2332;
+  --foreground: #d0dae8;
+  --rc-dark: #0f1923;
+  --rc-darker: #0a1219;
+  --rc-channel: #162030;
+  --rc-hover: #1f2e42;
+  --rc-active: #263a52;
+  --rc-sidebar: #162030;
+  --rc-chat: #1a2332;
+  --rc-input: #1f2e42;
+  --rc-header: #162030;
+  --rc-border: #0f1923;
+  --rc-muted: #6b8ab0;
+  --rc-text: #d0dae8;
+  --rc-text-secondary: #94adc8;
+  --rc-text-tertiary: #6b8ab0;
+  --scrollbar-thumb: #0f1923;
+  --scrollbar-thumb-hover: #162030;
+}
+
+/* ======================== */
+/* PURPLE THEME             */
+/* ======================== */
+.theme-purple {
+  --background: #231a33;
+  --foreground: #dcd0ea;
+  --rc-dark: #180f26;
+  --rc-darker: #110a1c;
+  --rc-channel: #1f1630;
+  --rc-hover: #2e1f45;
+  --rc-active: #3a2855;
+  --rc-sidebar: #1f1630;
+  --rc-chat: #231a33;
+  --rc-input: #2e1f45;
+  --rc-header: #1f1630;
+  --rc-border: #180f26;
+  --rc-muted: #8b6bb5;
+  --rc-text: #dcd0ea;
+  --rc-text-secondary: #b094d0;
+  --rc-text-tertiary: #8b6bb5;
+  --scrollbar-thumb: #180f26;
+  --scrollbar-thumb-hover: #1f1630;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

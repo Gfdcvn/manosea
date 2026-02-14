@@ -61,6 +61,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
 
   fetchServerDetails: async (serverId: string) => {
     const supabase = createClient();
+    set({ isLoading: true });
 
     const [channelsRes, categoriesRes, membersRes, rolesRes] = await Promise.all([
       supabase.from("channels").select("*").eq("server_id", serverId).order("position"),
@@ -74,6 +75,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       categories: categoriesRes.data || [],
       members: (membersRes.data || []) as ServerMember[],
       roles: rolesRes.data || [],
+      isLoading: false,
     });
   },
 

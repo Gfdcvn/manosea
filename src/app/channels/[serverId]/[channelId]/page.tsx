@@ -7,6 +7,7 @@ import { useServerStore } from "@/stores/server-store";
 import { ChatArea } from "@/components/chat/chat-area";
 import { MemberSidebar } from "@/components/layout/member-sidebar";
 import { useState } from "react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export default function ChannelPage() {
   const params = useParams();
@@ -25,6 +26,10 @@ export default function ChannelPage() {
 
     return () => setCurrentChannelId(null);
   }, [channelId, fetchMessages, setCurrentChannelId]);
+
+  if (!channel && channels.length === 0) {
+    return <LoadingSpinner fullPage size="lg" label="Loading channel..." />;
+  }
 
   if (!channel) {
     return (
