@@ -10,6 +10,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface UserProfileCardProps {
   user: User;
@@ -127,13 +133,26 @@ export function UserProfileCard({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-sm text-gray-400">@{user.username}</p>
                 {badges.length > 0 && badges.map((ub) => (
-                  <div
-                    key={ub.id}
-                    className="w-5 h-5 rounded-md bg-discord-dark flex items-center justify-center"
-                    title={ub.badge?.name || "Badge"}
-                  >
-                    <span className="text-xs">{ub.badge?.icon || "⭐"}</span>
-                  </div>
+                  <TooltipProvider key={ub.id} delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className="w-5 h-5 rounded-md bg-discord-dark flex items-center justify-center cursor-default hover:scale-125 transition-transform"
+                        >
+                          <span className="text-xs">{ub.badge?.icon || "⭐"}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[200px]"
+                      >
+                        <p className="text-sm font-semibold text-white">{ub.badge?.name || "Badge"}</p>
+                        {ub.badge?.description && (
+                          <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{ub.badge.description}</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 ))}
               </div>
             </div>

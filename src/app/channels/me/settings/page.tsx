@@ -88,7 +88,7 @@ export default function SettingsPage() {
     return (
       displayName !== (user.display_name || "") ||
       bio !== (user.about_me || "") ||
-      profileColor !== (user.profile_color || null) ||
+      (profileColor ?? null) !== (user.profile_color ?? null) ||
       avatarFile !== null ||
       sendMode !== (settings.send_mode || "button_or_enter")
     );
@@ -96,7 +96,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setShowConfirmBar(hasChanges());
-  }, [displayName, bio, profileColor, avatarFile, sendMode]);
+  }, [displayName, bio, profileColor, avatarFile, sendMode, user, settings]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -305,19 +305,16 @@ export default function SettingsPage() {
                           setProfileColor(val);
                         }
                       }}
+                      onBlur={() => {
+                        if (/^#[0-9A-Fa-f]{6}$/.test(customColor)) {
+                          setProfileColor(customColor);
+                        }
+                      }}
                       placeholder="#5865f2"
                       maxLength={7}
                       className="font-mono text-sm"
                     />
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setProfileColor(customColor)}
-                    disabled={!/^#[0-9A-Fa-f]{6}$/.test(customColor)}
-                  >
-                    Apply
-                  </Button>
                 </div>
 
                 {/* Preview */}
