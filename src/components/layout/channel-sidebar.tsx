@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Hash, Volume2, ChevronDown, Plus, Copy, Check, RefreshCw } from "lucide-react";
+import { Hash, Volume2, ChevronDown, Plus, Copy, Check, RefreshCw, Settings, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth-store";
+import { Channel } from "@/types";
 
 interface ChannelSidebarProps {
   serverId: string;
@@ -33,7 +35,9 @@ interface ChannelSidebarProps {
 export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { channels, categories, createChannel, createCategory } = useServerStore();
+  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, currentServer } = useServerStore();
+  const user = useAuthStore((s) => s.user);
+  const isOwner = currentServer && user && currentServer.owner_id === user.id;
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [createDialog, setCreateDialog] = useState<{
     type: "text" | "voice" | "category";
@@ -171,6 +175,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
               channel={channel}
               isActive={pathname?.includes(channel.id) || false}
               onClick={() => router.push(`/channels/${serverId}/${channel.id}`)}
+              isOwner={!!isOwner}
+              onRename={(newName) => renameChannel(channel.id, newName, serverId)}
+              onDelete={() => deleteChannel(channel.id, serverId)}
             />
           ))}
         </div>
@@ -198,6 +205,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                     channel={channel}
                     isActive={pathname?.includes(channel.id) || false}
                     onClick={() => router.push(`/channels/${serverId}/${channel.id}`)}
+                    isOwner={!!isOwner}
+                    onRename={(newName) => renameChannel(channel.id, newName, serverId)}
+                    onDelete={() => deleteChannel(channel.id, serverId)}
                   />
                 ))}
               </div>
@@ -336,27 +346,113 @@ function ChannelButton({
   channel,
   isActive,
   onClick,
+  isOwner,
+  onRename,
+  onDelete,
 }: {
-  channel: { type: string; name: string };
+  channel: Channel;
   isActive: boolean;
   onClick: () => void;
+  isOwner: boolean;
+  onRename: (newName: string) => void;
+  onDelete: () => void;
 }) {
+  const [showRename, setShowRename] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [newName, setNewName] = useState(channel.name);
+
+  const handleRename = () => {
+    const name = newName.trim();
+    if (!name || name === channel.name) { setShowRename(false); return; }
+    onRename(channel.type === "voice" ? name : name.toLowerCase().replace(/\s+/g, "-"));
+    setShowRename(false);
+  };
+
+  const handleDelete = () => {
+    onDelete();
+    setShowDeleteConfirm(false);
+  };
+
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors group",
-        isActive
-          ? "bg-discord-active text-white"
-          : "text-gray-400 hover:text-gray-200 hover:bg-discord-hover"
-      )}
-    >
-      {channel.type === "voice" ? (
-        <Volume2 className="w-4 h-4 shrink-0" />
-      ) : (
-        <Hash className="w-4 h-4 shrink-0" />
-      )}
-      <span className="truncate">{channel.name}</span>
-    </button>
+    <>
+      <div
+        className={cn(
+          "w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors group",
+          isActive
+            ? "bg-discord-active text-white"
+            : "text-gray-400 hover:text-gray-200 hover:bg-discord-hover"
+        )}
+      >
+        <button onClick={onClick} className="flex items-center gap-1.5 flex-1 min-w-0">
+          {channel.type === "voice" ? (
+            <Volume2 className="w-4 h-4 shrink-0" />
+          ) : (
+            <Hash className="w-4 h-4 shrink-0" />
+          )}
+          <span className="truncate">{channel.name}</span>
+        </button>
+        {isOwner && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 transition-all shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => { setNewName(channel.name); setShowRename(true); }}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Rename Channel
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowDeleteConfirm(true)} className="text-red-400 focus:text-red-400">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Channel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      {/* Rename Dialog */}
+      <Dialog open={showRename} onOpenChange={setShowRename}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Rename Channel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label className="text-xs font-bold text-gray-300 uppercase">Channel Name</Label>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleRename(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowRename(false)}>Cancel</Button>
+            <Button onClick={handleRename} disabled={!newName.trim()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Delete Channel</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-400">
+            Are you sure you want to delete <strong className="text-white">#{channel.name}</strong>? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

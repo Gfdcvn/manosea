@@ -24,6 +24,7 @@ interface MessageState {
 
   fetchDmChannels: () => Promise<void>;
   createDmChannel: (userId: string) => Promise<DMChannel | null>;
+  deleteDmChannel: (dmChannelId: string) => Promise<void>;
 
   sendTyping: (channelId: string) => void;
   addTypingUser: (indicator: TypingIndicator) => void;
@@ -195,6 +196,19 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       await get().fetchDmChannels();
     }
     return channel;
+  },
+
+  deleteDmChannel: async (dmChannelId) => {
+    const supabase = createClient();
+    // Delete all messages in this DM channel first
+    await supabase.from("messages").delete().eq("dm_channel_id", dmChannelId);
+    // Then delete the channel
+    await supabase.from("dm_channels").delete().eq("id", dmChannelId);
+    // Update local state
+    set((state) => ({
+      dmChannels: state.dmChannels.filter((dm) => dm.id !== dmChannelId),
+      currentDmChannel: state.currentDmChannel?.id === dmChannelId ? null : state.currentDmChannel,
+    }));
   },
 
   sendTyping: (channelId) => {

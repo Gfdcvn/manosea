@@ -61,7 +61,10 @@ export interface ServerBadge {
 export interface Server {
   id: string;
   name: string;
+  description: string | null;
   icon_url: string | null;
+  banner_color: string | null;
+  tag: string | null;
   owner_id: string;
   is_suspended: boolean;
   suspension_reason: string | null;

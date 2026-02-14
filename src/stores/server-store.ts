@@ -19,6 +19,9 @@ interface ServerState {
   joinServer: (inviteCode: string) => Promise<boolean>;
   createChannel: (serverId: string, name: string, type: string, categoryId?: string) => Promise<void>;
   createCategory: (serverId: string, name: string) => Promise<void>;
+  renameChannel: (channelId: string, newName: string, serverId: string) => Promise<void>;
+  deleteChannel: (channelId: string, serverId: string) => Promise<void>;
+  updateServer: (serverId: string, data: Partial<Server>) => Promise<void>;
 }
 
 export const useServerStore = create<ServerState>((set, get) => ({
@@ -169,5 +172,32 @@ export const useServerStore = create<ServerState>((set, get) => ({
       position: get().categories.length,
     });
     await get().fetchServerDetails(serverId);
+  },
+
+  renameChannel: async (channelId, newName, serverId) => {
+    const supabase = createClient();
+    await supabase.from("channels").update({ name: newName }).eq("id", channelId);
+    await get().fetchServerDetails(serverId);
+  },
+
+  deleteChannel: async (channelId, serverId) => {
+    const supabase = createClient();
+    await supabase.from("channels").delete().eq("id", channelId);
+    await get().fetchServerDetails(serverId);
+  },
+
+  updateServer: async (serverId, data) => {
+    const supabase = createClient();
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.banner_color !== undefined) updateData.banner_color = data.banner_color;
+    if (data.tag !== undefined) updateData.tag = data.tag;
+    if (data.icon_url !== undefined) updateData.icon_url = data.icon_url;
+    await supabase.from("servers").update(updateData).eq("id", serverId);
+    await get().fetchServers();
+    // Update currentServer in local state
+    const server = get().servers.find((s) => s.id === serverId);
+    if (server) set({ currentServer: server });
   },
 }));

@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { cn, getStatusColor } from "@/lib/utils";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus, Search, X } from "lucide-react";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { User, FriendRequest } from "@/types";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +24,7 @@ export function DmSidebar() {
   const pathname = usePathname();
   const dmChannels = useMessageStore((s) => s.dmChannels);
   const createDmChannel = useMessageStore((s) => s.createDmChannel);
+  const deleteDmChannel = useMessageStore((s) => s.deleteDmChannel);
   const user = useAuthStore((s) => s.user);
   const [showNewDm, setShowNewDm] = useState(false);
   const [friendsList, setFriendsList] = useState<User[]>([]);
@@ -162,9 +163,8 @@ export function DmSidebar() {
             const isActive = pathname?.includes(dm.id);
 
             return (
-              <button
+              <div
                 key={dm.id}
-                onClick={() => router.push(`/channels/me/${dm.id}`)}
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors group",
                   isActive
@@ -172,24 +172,40 @@ export function DmSidebar() {
                     : "text-gray-400 hover:text-white hover:bg-discord-hover"
                 )}
               >
-                <div className="relative">
-                  <UserProfileCard user={otherUser as User} side="right" align="start">
-                    <Avatar className="w-8 h-8">
-                      <AvatarImage src={otherUser.avatar_url || undefined} />
-                      <AvatarFallback className="text-xs">
-                        {otherUser.display_name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </UserProfileCard>
-                  <div
-                    className={cn(
-                      "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-discord-channel",
-                      getStatusColor(otherUser.status)
-                    )}
-                  />
-                </div>
-                <span className="truncate">{otherUser.display_name}</span>
-              </button>
+                <button
+                  onClick={() => router.push(`/channels/me/${dm.id}`)}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                >
+                  <div className="relative">
+                    <UserProfileCard user={otherUser as User} side="right" align="start">
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={otherUser.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {otherUser.display_name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </UserProfileCard>
+                    <div
+                      className={cn(
+                        "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-discord-channel",
+                        getStatusColor(otherUser.status)
+                      )}
+                    />
+                  </div>
+                  <span className="truncate">{otherUser.display_name}</span>
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await deleteDmChannel(dm.id);
+                    if (isActive) router.push("/channels/me");
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/10 transition-all shrink-0"
+                  title="Close DM"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             );
           })}
         </div>

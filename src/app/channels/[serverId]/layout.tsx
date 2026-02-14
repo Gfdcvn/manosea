@@ -6,6 +6,7 @@ import { useServerStore } from "@/stores/server-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { ChannelSidebar } from "@/components/layout/channel-sidebar";
 import { UserPanel } from "@/components/layout/user-panel";
+import { ServerSettings } from "@/components/server-settings";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, Settings, UserPlus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -38,7 +37,6 @@ export default function ServerLayout({
   const user = useAuthStore((s) => s.user);
 
   const [showSettings, setShowSettings] = useState(false);
-  const [serverName, setServerName] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -66,15 +64,6 @@ export default function ServerLayout({
       created_by: user.id,
     });
     navigator.clipboard.writeText(code);
-    alert(`Invite code copied: ${code}`);
-  };
-
-  const handleSaveSettings = async () => {
-    if (!serverName.trim()) return;
-    const supabase = createClient();
-    await supabase.from("servers").update({ name: serverName.trim() }).eq("id", serverId);
-    await fetchServers();
-    setShowSettings(false);
   };
 
   const handleDeleteServer = async () => {
@@ -111,12 +100,7 @@ export default function ServerLayout({
             {isOwner && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setServerName(currentServer.name);
-                    setShowSettings(true);
-                  }}
-                >
+                <DropdownMenuItem onClick={() => setShowSettings(true)}>
                   <Settings className="w-4 h-4 mr-2" />
                   Server Settings
                 </DropdownMenuItem>
@@ -138,31 +122,10 @@ export default function ServerLayout({
       </div>
       <div className="flex-1 flex flex-col">{children}</div>
 
-      {/* Server Settings Dialog */}
-      <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Server Settings</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-xs font-bold text-gray-300 uppercase">Server Name</Label>
-              <Input
-                value={serverName}
-                onChange={(e) => setServerName(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => setShowSettings(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveSettings} disabled={!serverName.trim()}>
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Full-page Server Settings */}
+      {showSettings && (
+        <ServerSettings serverId={serverId} onClose={() => setShowSettings(false)} />
+      )}
 
       {/* Delete Confirm Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

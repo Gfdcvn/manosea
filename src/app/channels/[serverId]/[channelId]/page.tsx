@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useMessageStore } from "@/stores/message-store";
 import { useServerStore } from "@/stores/server-store";
 import { ChatArea } from "@/components/chat/chat-area";
+import { VoiceChannelView } from "@/components/chat/voice-channel";
 import { MemberSidebar } from "@/components/layout/member-sidebar";
 import { useState } from "react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -41,13 +42,10 @@ export default function ChannelPage() {
 
   if (channel.type === "voice") {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-discord-chat">
-        <h2 className="text-2xl font-bold text-white mb-4">{channel.name}</h2>
-        <p className="text-gray-400 mb-6">Voice Channel</p>
-        <button className="bg-discord-green text-white px-6 py-3 rounded-full font-medium hover:bg-green-600 transition-colors">
-          Join Voice
-        </button>
-      </div>
+      <VoiceChannelView
+        channelId={channelId}
+        channelName={channel.name}
+      />
     );
   }
 
