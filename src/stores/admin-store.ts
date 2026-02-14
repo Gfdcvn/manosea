@@ -94,13 +94,15 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       popup_shown: false,
     });
 
-    // Update user standing
+    // Update user standing — count active warns/suspends
+    // Include permanent punishments (null becomes_past_at) AND unexpired ones
     const { data: activePunishments } = await supabase
       .from("user_punishments")
       .select("*")
       .eq("user_id", data.user_id)
+      .eq("is_active", true)
       .in("type", ["warn", "suspend"])
-      .gt("becomes_past_at", new Date().toISOString());
+      .or(`becomes_past_at.is.null,becomes_past_at.gt.${new Date().toISOString()}`);
 
     const standingLevel = Math.min((activePunishments?.length || 0), 4);
 

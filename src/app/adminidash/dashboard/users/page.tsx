@@ -470,19 +470,18 @@ export default function AdminUsersPage() {
               />
             </div>
 
-            {(punishType === "mute" || punishType === "suspend" || punishType === "ban") && (
-              <div>
-                <Label className="text-xs font-bold text-gray-300 uppercase">
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase">
                 Duration (days, leave empty for permanent)
-                </Label>
-                <Input
-                  type="number"
-                  value={punishDuration}
-                  onChange={(e) => setPunishDuration(e.target.value)}
-                  placeholder="24"
-                />
-              </div>
-            )}
+              </Label>
+              <Input
+                type="number"
+                value={punishDuration}
+                onChange={(e) => setPunishDuration(e.target.value)}
+                placeholder="24"
+                min="1"
+              />
+            </div>
 
             <div className="flex justify-end gap-3">
               <Button variant="ghost" onClick={() => setShowPunishDialog(false)}>
