@@ -21,8 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Users, Hash, Eye, Award, X, Plus } from "lucide-react";
+import { Search, Users, Hash, Eye, Award, X, Plus, Send } from "lucide-react";
 import { ServerBadge } from "@/types";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ServerInfo {
   id: string;
@@ -47,6 +48,11 @@ export default function AdminServersPage() {
   const [serverBadges, setServerBadges] = useState<ServerBadge[]>([]);
   const [showAssignBadge, setShowAssignBadge] = useState(false);
   const [selectedBadgeId, setSelectedBadgeId] = useState("");
+
+  // Broadcast message state
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastSending, setBroadcastSending] = useState(false);
 
   useEffect(() => {
     fetchServers();
@@ -114,6 +120,54 @@ export default function AdminServersPage() {
     await fetchServerBadges(selectedServer.id);
   };
 
+  const handleBroadcast = async () => {
+    if (!selectedServer || !broadcastMessage.trim()) return;
+    setBroadcastSending(true);
+    const supabase = createClient();
+    const SYSTEM_BOT_ID = "00000000-0000-0000-0000-000000000001";
+
+    // Get all members of the server
+    const { data: members } = await supabase
+      .from("server_members")
+      .select("user_id")
+      .eq("server_id", selectedServer.id);
+
+    if (members) {
+      for (const member of members) {
+        // Find or create DM channel between system bot and member
+        const { data: existingDm } = await supabase
+          .from("dm_channels")
+          .select("*")
+          .or(
+            `and(user1_id.eq.${SYSTEM_BOT_ID},user2_id.eq.${member.user_id}),and(user1_id.eq.${member.user_id},user2_id.eq.${SYSTEM_BOT_ID})`
+          )
+          .single();
+
+        let dmId = existingDm?.id;
+        if (!dmId) {
+          const { data: newDm } = await supabase
+            .from("dm_channels")
+            .insert({ user1_id: SYSTEM_BOT_ID, user2_id: member.user_id })
+            .select()
+            .single();
+          dmId = newDm?.id;
+        }
+
+        if (dmId) {
+          await supabase.from("messages").insert({
+            content: `📢 **Server Broadcast — ${selectedServer.name}**\n\n${broadcastMessage.trim()}`,
+            dm_channel_id: dmId,
+            author_id: SYSTEM_BOT_ID,
+          });
+        }
+      }
+    }
+
+    setBroadcastSending(false);
+    setShowBroadcast(false);
+    setBroadcastMessage("");
+  };
+
   const availableBadges = badges.filter(
     (b) => !serverBadges.some((sb) => sb.badge_id === b.id)
   );
@@ -123,7 +177,7 @@ export default function AdminServersPage() {
   );
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-discord-chat min-h-full">
       <h1 className="text-2xl font-bold text-white mb-6">Server Management</h1>
 
       <div className="relative mb-6">
@@ -313,6 +367,15 @@ export default function AdminServersPage() {
                 >
                   {selectedServer.is_suspended ? "Unsuspend Server" : "Suspend Server"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-discord-brand hover:text-discord-brand"
+                  onClick={() => setShowBroadcast(true)}
+                >
+                  <Send className="w-4 h-4 mr-1" />
+                  Broadcast Message
+                </Button>
               </div>
             </>
           )}
@@ -354,6 +417,40 @@ export default function AdminServersPage() {
                 </div>
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Broadcast Message Dialog */}
+      <Dialog open={showBroadcast} onOpenChange={(open) => { if (!open) { setShowBroadcast(false); setBroadcastMessage(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Broadcast to {selectedServer?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-gray-400">
+              This will send a DM from the System bot to all {selectedServer?.member_count} members of this server.
+            </p>
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase">Message</Label>
+              <Textarea
+                value={broadcastMessage}
+                onChange={(e) => setBroadcastMessage(e.target.value)}
+                placeholder="Type your broadcast message..."
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => { setShowBroadcast(false); setBroadcastMessage(""); }}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBroadcast}
+                disabled={!broadcastMessage.trim() || broadcastSending}
+              >
+                {broadcastSending ? "Sending..." : "Send to All Members"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

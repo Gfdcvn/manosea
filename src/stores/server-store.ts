@@ -21,6 +21,7 @@ interface ServerState {
   createCategory: (serverId: string, name: string) => Promise<void>;
   renameChannel: (channelId: string, newName: string, serverId: string) => Promise<void>;
   deleteChannel: (channelId: string, serverId: string) => Promise<void>;
+  moveChannel: (channelId: string, categoryId: string | null, serverId: string) => Promise<void>;
   updateServer: (serverId: string, data: Partial<Server>) => Promise<void>;
 }
 
@@ -183,6 +184,12 @@ export const useServerStore = create<ServerState>((set, get) => ({
   deleteChannel: async (channelId, serverId) => {
     const supabase = createClient();
     await supabase.from("channels").delete().eq("id", channelId);
+    await get().fetchServerDetails(serverId);
+  },
+
+  moveChannel: async (channelId, categoryId, serverId) => {
+    const supabase = createClient();
+    await supabase.from("channels").update({ category_id: categoryId }).eq("id", channelId);
     await get().fetchServerDetails(serverId);
   },
 

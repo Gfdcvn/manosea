@@ -84,11 +84,22 @@ export default function ServerLayout({
   return (
     <div className="flex flex-1">
       <div className="w-60 bg-discord-channel flex flex-col">
+        {/* Banner color strip */}
+        {currentServer.banner_color && (
+          <div className="h-1.5 shrink-0" style={{ backgroundColor: currentServer.banner_color }} />
+        )}
         {/* Server Header with Settings Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="h-12 border-b border-gray-800 flex items-center justify-between px-4 shadow-sm w-full hover:bg-discord-hover transition-colors">
-              <h2 className="text-white font-semibold truncate">{currentServer.name}</h2>
+              <div className="flex items-center gap-2 min-w-0">
+                <h2 className="text-white font-semibold truncate">{currentServer.name}</h2>
+                {currentServer.tag && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-discord-brand/20 text-discord-brand font-medium shrink-0 uppercase">
+                    {currentServer.tag}
+                  </span>
+                )}
+              </div>
               <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
             </button>
           </DropdownMenuTrigger>

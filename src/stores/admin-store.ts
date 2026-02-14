@@ -21,6 +21,8 @@ interface AdminState {
     duration_days?: number;
   }) => Promise<void>;
 
+  deletePunishment: (punishmentId: string, userId: string) => Promise<void>;
+
   createBadge: (data: { name: string; description?: string; icon?: string; icon_url?: string; type: string; affects_standing?: boolean; standing_override?: number }) => Promise<void>;
   deleteBadge: (badgeId: string) => Promise<void>;
   assignBadgeToUser: (userId: string, badgeId: string) => Promise<void>;
@@ -178,6 +180,44 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         })
         .eq("id", data.user_id);
     }
+  },
+
+  deletePunishment: async (punishmentId, userId) => {
+    const supabase = createClient();
+    // Delete the punishment
+    await supabase.from("user_punishments").delete().eq("id", punishmentId);
+
+    // Recalculate standing
+    const { data: activePunishments } = await supabase
+      .from("user_punishments")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .in("type", ["warn", "suspend"])
+      .or(`becomes_past_at.is.null,becomes_past_at.gt.${new Date().toISOString()}`);
+
+    const standingLevel = Math.min((activePunishments?.length || 0), 4);
+
+    // Check for badge override
+    const { data: userBadges } = await supabase
+      .from("user_badges")
+      .select("*, badge:badges(*)")
+      .eq("user_id", userId);
+
+    const hasOverride = userBadges?.some((ub: { badge?: { affects_standing?: boolean } }) => ub.badge?.affects_standing);
+
+    await supabase
+      .from("users")
+      .update({
+        standing_level: hasOverride ? 0 : standingLevel,
+        is_suspended: standingLevel >= 4,
+        is_banned: false,
+      })
+      .eq("id", userId);
+
+    // Refresh punishments list
+    await get().fetchUserPunishments(userId);
+    await get().fetchAllUsers();
   },
 
   createBadge: async (data) => {

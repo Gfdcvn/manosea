@@ -35,12 +35,13 @@ interface ChannelSidebarProps {
 export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, currentServer } = useServerStore();
+  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer } = useServerStore();
   const user = useAuthStore((s) => s.user);
   const isOwner = currentServer && user && currentServer.owner_id === user.id;
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [createDialog, setCreateDialog] = useState<{
     type: "text" | "voice" | "category";
+    categoryId?: string;
     open: boolean;
   }>({ type: "text", open: false });
   const [channelName, setChannelName] = useState("");
@@ -115,9 +116,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     setTimeout(() => setInviteCopied(false), 2000);
   };
 
-  const openCreateDialog = (type: "text" | "voice" | "category") => {
+  const openCreateDialog = (type: "text" | "voice" | "category", categoryId?: string) => {
     setChannelName("");
-    setCreateDialog({ type, open: true });
+    setCreateDialog({ type, categoryId, open: true });
   };
 
   const handleCreate = async () => {
@@ -126,7 +127,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     if (createDialog.type === "category") {
       await createCategory(serverId, name);
     } else {
-      await createChannel(serverId, name.toLowerCase().replace(/\s+/g, "-"), createDialog.type);
+      await createChannel(serverId, name.toLowerCase().replace(/\s+/g, "-"), createDialog.type, createDialog.categoryId);
     }
     setCreateDialog({ ...createDialog, open: false });
     setChannelName("");
@@ -138,6 +139,33 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     category: cat,
     channels: channels.filter((c) => c.category_id === cat.id),
   }));
+
+  // Drag and drop
+  const [draggedChannelId, setDraggedChannelId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  const handleDragStart = (channelId: string) => {
+    setDraggedChannelId(channelId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    setDragOverTarget(targetId);
+  };
+
+  const handleDrop = async (e: React.DragEvent, categoryId: string | null) => {
+    e.preventDefault();
+    if (draggedChannelId && isOwner) {
+      await moveChannel(draggedChannelId, categoryId, serverId);
+    }
+    setDraggedChannelId(null);
+    setDragOverTarget(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedChannelId(null);
+    setDragOverTarget(null);
+  };
 
   return (
     <ScrollArea className="flex-1">
@@ -168,7 +196,12 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
         </DropdownMenu>
 
         {/* Uncategorized channels */}
-        <div className="mt-1 space-y-0.5">
+        <div
+          className={cn("mt-1 space-y-0.5 min-h-[8px] rounded transition-colors", dragOverTarget === "uncategorized" && "bg-discord-brand/10")}
+          onDragOver={(e) => handleDragOver(e, "uncategorized")}
+          onDragLeave={() => setDragOverTarget(null)}
+          onDrop={(e) => handleDrop(e, null)}
+        >
           {uncategorized.map((channel) => (
             <ChannelButton
               key={channel.id}
@@ -178,6 +211,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
               isOwner={!!isOwner}
               onRename={(newName) => renameChannel(channel.id, newName, serverId)}
               onDelete={() => deleteChannel(channel.id, serverId)}
+              onDragStart={() => handleDragStart(channel.id)}
+              onDragEnd={handleDragEnd}
+              isDragging={draggedChannelId === channel.id}
             />
           ))}
         </div>
@@ -185,20 +221,50 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
         {/* Categorized channels */}
         {categorizedChannels.map(({ category, channels: catChannels }) => (
           <div key={category.id} className="mt-4">
-            <button
-              onClick={() => toggleCategory(category.id)}
-              className="flex items-center gap-0.5 px-0.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-200 w-full"
-            >
-              <ChevronDown
-                className={cn(
-                  "w-3 h-3 transition-transform",
-                  collapsedCategories.has(category.id) && "-rotate-90"
-                )}
-              />
-              {category.name}
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => toggleCategory(category.id)}
+                className="flex items-center gap-0.5 px-0.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-200 flex-1"
+              >
+                <ChevronDown
+                  className={cn(
+                    "w-3 h-3 transition-transform",
+                    collapsedCategories.has(category.id) && "-rotate-90"
+                  )}
+                />
+                {category.name}
+              </button>
+              {isOwner && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-0.5 rounded hover:bg-white/10 text-gray-400 hover:text-gray-200 transition-all"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Add channel to category"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => openCreateDialog("text", category.id)}>
+                      <Hash className="w-4 h-4 mr-2" />
+                      Text Channel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openCreateDialog("voice", category.id)}>
+                      <Volume2 className="w-4 h-4 mr-2" />
+                      Voice Channel
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
             {!collapsedCategories.has(category.id) && (
-              <div className="mt-1 space-y-0.5">
+              <div
+                className={cn("mt-1 space-y-0.5 min-h-[8px] rounded transition-colors", dragOverTarget === category.id && "bg-discord-brand/10")}
+                onDragOver={(e) => handleDragOver(e, category.id)}
+                onDragLeave={() => setDragOverTarget(null)}
+                onDrop={(e) => handleDrop(e, category.id)}
+              >
                 {catChannels.map((channel) => (
                   <ChannelButton
                     key={channel.id}
@@ -208,6 +274,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                     isOwner={!!isOwner}
                     onRename={(newName) => renameChannel(channel.id, newName, serverId)}
                     onDelete={() => deleteChannel(channel.id, serverId)}
+                    onDragStart={() => handleDragStart(channel.id)}
+                    onDragEnd={handleDragEnd}
+                    isDragging={draggedChannelId === channel.id}
                   />
                 ))}
               </div>
@@ -349,6 +418,9 @@ function ChannelButton({
   isOwner,
   onRename,
   onDelete,
+  onDragStart,
+  onDragEnd,
+  isDragging,
 }: {
   channel: Channel;
   isActive: boolean;
@@ -356,6 +428,9 @@ function ChannelButton({
   isOwner: boolean;
   onRename: (newName: string) => void;
   onDelete: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  isDragging?: boolean;
 }) {
   const [showRename, setShowRename] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -376,11 +451,19 @@ function ChannelButton({
   return (
     <>
       <div
+        draggable={isOwner}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          onDragStart?.();
+        }}
+        onDragEnd={onDragEnd}
         className={cn(
           "w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm transition-colors group",
           isActive
             ? "bg-discord-active text-white"
-            : "text-gray-400 hover:text-gray-200 hover:bg-discord-hover"
+            : "text-gray-400 hover:text-gray-200 hover:bg-discord-hover",
+          isDragging && "opacity-40",
+          isOwner && "cursor-grab active:cursor-grabbing"
         )}
       >
         <button onClick={onClick} className="flex items-center gap-1.5 flex-1 min-w-0">

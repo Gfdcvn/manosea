@@ -11,16 +11,38 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Plus, Compass, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CreateServerModal } from "@/components/modals/create-server-modal";
+import { createClient } from "@/lib/supabase/client";
+import { ServerBadge } from "@/types";
 
 export function ServerSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const servers = useServerStore((s) => s.servers);
   const [showCreateServer, setShowCreateServer] = useState(false);
+  const [serverBadgesMap, setServerBadgesMap] = useState<Record<string, ServerBadge[]>>({});
 
   const isDmActive = pathname?.startsWith("/channels/me");
+
+  // Fetch badges for all servers
+  useEffect(() => {
+    if (servers.length === 0) return;
+    const supabase = createClient();
+    const serverIds = servers.map((s) => s.id);
+    supabase
+      .from("server_badges")
+      .select("*, badge:badges(*)")
+      .in("server_id", serverIds)
+      .then(({ data }) => {
+        const map: Record<string, ServerBadge[]> = {};
+        (data as ServerBadge[] || []).forEach((sb) => {
+          if (!map[sb.server_id]) map[sb.server_id] = [];
+          map[sb.server_id].push(sb);
+        });
+        setServerBadgesMap(map);
+      });
+  }, [servers]);
 
   return (
     <>
@@ -82,7 +104,16 @@ export function ServerSidebar() {
                       />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right">{server.name}</TooltipContent>
+                  <TooltipContent side="right">
+                    <div className="flex items-center gap-1.5">
+                      <span>{server.name}</span>
+                      {serverBadgesMap[server.id]?.map((sb) => (
+                        <span key={sb.id} title={sb.badge?.name} className="text-sm">
+                          {sb.badge?.icon}
+                        </span>
+                      ))}
+                    </div>
+                  </TooltipContent>
                 </Tooltip>
               );
             })}

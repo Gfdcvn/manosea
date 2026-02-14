@@ -184,7 +184,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       )
       .single();
 
-    if (existing) return existing;
+    if (existing) {
+      // Refresh DM channels to ensure sidebar shows it
+      await get().fetchDmChannels();
+      return existing;
+    }
 
     const { data: channel } = await supabase
       .from("dm_channels")

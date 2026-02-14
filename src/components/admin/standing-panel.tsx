@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useAdminStore } from "@/stores/admin-store";
 import { getStandingInfo, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { X } from "lucide-react";
 
 interface StandingPanelProps {
   userId: string;
@@ -11,7 +12,7 @@ interface StandingPanelProps {
 }
 
 export function StandingPanel({ userId, standing }: StandingPanelProps) {
-  const { punishments, fetchUserPunishments } = useAdminStore();
+  const { punishments, fetchUserPunishments, deletePunishment } = useAdminStore();
   const standingInfo = getStandingInfo(standing);
 
   useEffect(() => {
@@ -92,10 +93,17 @@ export function StandingPanel({ userId, standing }: StandingPanelProps) {
               <div
                 key={p.id}
                 className={cn(
-                  "bg-discord-darker rounded-lg p-3 border-l-2",
+                  "bg-discord-darker rounded-lg p-3 border-l-2 group/punishment relative",
                   p.is_active ? "border-red-400" : "border-gray-600"
                 )}
               >
+                <button
+                  onClick={() => deletePunishment(p.id, userId)}
+                  className="absolute top-2 right-2 p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 opacity-0 group-hover/punishment:opacity-100 transition-opacity"
+                  title="Delete punishment"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold text-white uppercase">{p.type}</span>
                   <span className="text-[10px] text-gray-500">
