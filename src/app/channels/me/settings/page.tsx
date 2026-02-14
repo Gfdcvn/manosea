@@ -18,7 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
-import { X, Upload, Check } from "lucide-react";
+import { X, Upload, Check, Mail, Lock, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const PRESET_COLORS = [
   "#5865f2", "#57f287", "#fee75c", "#eb459e", "#ed4245",
@@ -66,7 +74,16 @@ export default function SettingsPage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [sendMode, setSendMode] = useState<string>("button_or_enter");
   const [saving, setSaving] = useState(false);
-  const [showConfirmBar, setShowConfirmBar] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
+  const [accountLoading, setAccountLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -93,10 +110,6 @@ export default function SettingsPage() {
       avatarFile !== null ||
       sendMode !== (settings.send_mode || "button_or_enter")
     );
-
-  useEffect(() => {
-    setShowConfirmBar(hasChanges);
-  }, [hasChanges]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -131,7 +144,6 @@ export default function SettingsPage() {
       });
 
       setAvatarFile(null);
-      setShowConfirmBar(false);
     } catch (err) {
       console.error("Failed to save settings:", err);
     } finally {
@@ -151,7 +163,6 @@ export default function SettingsPage() {
     if (settings) {
       setSendMode(settings.send_mode || "button_or_enter");
     }
-    setShowConfirmBar(false);
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -341,6 +352,45 @@ export default function SettingsPage() {
                   <p className="text-white text-sm mt-1 capitalize">{user.role}</p>
                 </div>
               </div>
+
+              <Separator className="my-4" />
+
+              {/* Account Actions */}
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-4">Account Management</h2>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => { setNewEmail(user.email || ""); setAccountError(null); setAccountSuccess(null); setShowEmailDialog(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-discord-dark rounded-lg hover:bg-discord-hover transition-colors text-left"
+                  >
+                    <Mail className="w-5 h-5 text-discord-brand" />
+                    <div>
+                      <p className="text-sm font-medium text-white">Change Email</p>
+                      <p className="text-xs text-gray-400">Update your account email address</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setNewPassword(""); setConfirmPassword(""); setAccountError(null); setAccountSuccess(null); setShowPasswordDialog(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-discord-dark rounded-lg hover:bg-discord-hover transition-colors text-left"
+                  >
+                    <Lock className="w-5 h-5 text-discord-yellow" />
+                    <div>
+                      <p className="text-sm font-medium text-white">Change Password</p>
+                      <p className="text-xs text-gray-400">Update your account password</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setDeleteConfirmText(""); setAccountError(null); setShowDeleteDialog(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-discord-red/10 border border-discord-red/20 rounded-lg hover:bg-discord-red/20 transition-colors text-left"
+                  >
+                    <Trash2 className="w-5 h-5 text-discord-red" />
+                    <div>
+                      <p className="text-sm font-medium text-discord-red">Delete Account</p>
+                      <p className="text-xs text-gray-400">Permanently delete your account and all data</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -481,7 +531,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Confirm Bar */}
-      {showConfirmBar && (
+      {hasChanges && (
         <div className="fixed bottom-0 left-0 right-0 bg-discord-darker border-t border-gray-700 p-3 flex items-center justify-between px-6 z-50 animate-in slide-in-from-bottom-2">
           <p className="text-sm text-white">Careful — you have unsaved changes!</p>
           <div className="flex gap-3">
@@ -494,6 +544,161 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Change Email Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Email</DialogTitle>
+            <DialogDescription>
+              Enter your new email address. You will receive a confirmation link.
+            </DialogDescription>
+          </DialogHeader>
+          {accountError && <p className="text-discord-red text-sm">{accountError}</p>}
+          {accountSuccess && <p className="text-discord-green text-sm">{accountSuccess}</p>}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">New Email</Label>
+              <Input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="your@email.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowEmailDialog(false)}>Cancel</Button>
+            <Button
+              disabled={accountLoading || !newEmail.trim() || newEmail === user.email}
+              onClick={async () => {
+                setAccountLoading(true);
+                setAccountError(null);
+                setAccountSuccess(null);
+                try {
+                  const supabase = createClient();
+                  const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
+                  if (error) throw error;
+                  setAccountSuccess("Confirmation email sent! Check your inbox.");
+                } catch (err: unknown) {
+                  setAccountError(err instanceof Error ? err.message : "Failed to update email");
+                } finally {
+                  setAccountLoading(false);
+                }
+              }}
+            >
+              {accountLoading ? "Sending..." : "Update Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your new password. Must be at least 6 characters.
+            </DialogDescription>
+          </DialogHeader>
+          {accountError && <p className="text-discord-red text-sm">{accountError}</p>}
+          {accountSuccess && <p className="text-discord-green text-sm">{accountSuccess}</p>}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">New Password</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">Confirm Password</Label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+            <Button
+              disabled={accountLoading || newPassword.length < 6 || newPassword !== confirmPassword}
+              onClick={async () => {
+                setAccountLoading(true);
+                setAccountError(null);
+                setAccountSuccess(null);
+                try {
+                  const supabase = createClient();
+                  const { error } = await supabase.auth.updateUser({ password: newPassword });
+                  if (error) throw error;
+                  setAccountSuccess("Password updated successfully!");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                } catch (err: unknown) {
+                  setAccountError(err instanceof Error ? err.message : "Failed to update password");
+                } finally {
+                  setAccountLoading(false);
+                }
+              }}
+            >
+              {accountLoading ? "Updating..." : "Update Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-discord-red">Delete Account</DialogTitle>
+            <DialogDescription>
+              This action is permanent and cannot be undone. All your data, messages, servers and friendships will be deleted forever.
+            </DialogDescription>
+          </DialogHeader>
+          {accountError && <p className="text-discord-red text-sm">{accountError}</p>}
+          <div className="bg-discord-red/10 border border-discord-red/20 rounded-lg p-3">
+            <p className="text-sm text-gray-300">
+              Type <span className="font-bold text-white">DELETE</span> to confirm account deletion.
+            </p>
+          </div>
+          <Input
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder="Type DELETE to confirm"
+            className="font-mono"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-discord-red hover:bg-discord-red-hover text-white"
+              disabled={accountLoading || deleteConfirmText !== "DELETE"}
+              onClick={async () => {
+                setAccountLoading(true);
+                setAccountError(null);
+                try {
+                  const supabase = createClient();
+                  // Delete user profile data first
+                  await supabase.from("users").delete().eq("id", user.id);
+                  // Sign out
+                  await supabase.auth.signOut();
+                  router.push("/auth/login");
+                } catch (err: unknown) {
+                  setAccountError(err instanceof Error ? err.message : "Failed to delete account");
+                  setAccountLoading(false);
+                }
+              }}
+            >
+              {accountLoading ? "Deleting..." : "Delete My Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
