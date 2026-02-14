@@ -83,20 +83,20 @@ export default function SettingsPage() {
     }
   }, [user, settings]);
 
-  const hasChanges = () => {
-    if (!user || !settings) return false;
-    return (
+  const hasChanges =
+    !!user &&
+    !!settings &&
+    (
       displayName !== (user.display_name || "") ||
       bio !== (user.about_me || "") ||
       (profileColor ?? null) !== (user.profile_color ?? null) ||
       avatarFile !== null ||
       sendMode !== (settings.send_mode || "button_or_enter")
     );
-  };
 
   useEffect(() => {
-    setShowConfirmBar(hasChanges());
-  }, [displayName, bio, profileColor, avatarFile, sendMode, user, settings]);
+    setShowConfirmBar(hasChanges);
+  }, [hasChanges]);
 
   const handleSave = async () => {
     if (!user) return;

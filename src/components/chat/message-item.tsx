@@ -9,6 +9,14 @@ import { Pencil, Trash2, Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfileCard } from "@/components/user-profile-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface MessageItemProps {
   message: Message;
@@ -20,6 +28,7 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content || "");
   const [showActions, setShowActions] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
 
@@ -192,7 +201,7 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
           </button>
           {isOwn && (
             <button
-              onClick={() => deleteMessage(message.id)}
+              onClick={() => setShowDeleteConfirm(true)}
               className="p-1.5 hover:bg-discord-hover rounded text-discord-red hover:text-discord-red-hover"
             >
               <Trash2 className="w-4 h-4" />
@@ -200,6 +209,46 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
           )}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Message</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this message? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-discord-darker rounded-lg p-3 my-2">
+            <div className="flex items-start gap-3">
+              <Avatar className="w-8 h-8 shrink-0">
+                <AvatarImage src={message.author?.avatar_url || undefined} />
+                <AvatarFallback className="text-xs">
+                  {message.author?.display_name?.charAt(0) || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white">{message.author?.display_name}</p>
+                <p className="text-sm text-gray-400 break-words">{message.content}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-discord-red hover:bg-discord-red-hover text-white"
+              onClick={() => {
+                deleteMessage(message.id);
+                setShowDeleteConfirm(false);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

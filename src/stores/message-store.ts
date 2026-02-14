@@ -42,7 +42,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   setMessages: (messages) => set({ messages }),
   setCurrentChannelId: (currentChannelId) => set({ currentChannelId }),
   setCurrentDmChannel: (currentDmChannel) => set({ currentDmChannel }),
-  addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
+  addMessage: (message) =>
+    set((state) => {
+      // Deduplicate — skip if message already exists
+      if (state.messages.some((m) => m.id === message.id)) return state;
+      return { messages: [...state.messages, message] };
+    }),
 
   fetchMessages: async (channelId, isDm = false) => {
     const supabase = createClient();
@@ -112,6 +117,19 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       .single();
 
     if (error) return null;
+
+    // Optimistically add to local state so the message appears instantly
+    if (data) {
+      const currentChannel = get().currentChannelId;
+      const targetChannel = data.channel_id || data.dm_channel_id;
+      if (targetChannel === currentChannel) {
+        set((state) => {
+          if (state.messages.some((m) => m.id === data.id)) return state;
+          return { messages: [...state.messages, data] };
+        });
+      }
+    }
+
     return data;
   },
 
