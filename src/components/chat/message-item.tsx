@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Message } from "@/types";
 import { useMessageStore } from "@/stores/message-store";
+import { useServerStore } from "@/stores/server-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatRelativeTime } from "@/lib/utils";
 import { Pencil, Trash2, Copy } from "lucide-react";
@@ -32,6 +33,21 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
+  const members = useServerStore((s) => s.members);
+  const memberRoles = useServerStore((s) => s.memberRoles);
+  const roles = useServerStore((s) => s.roles);
+
+  // Find the author's highest role with an icon
+  const authorMember = members.find((m) => m.user_id === message.author_id);
+  const authorRoleIds = authorMember
+    ? memberRoles.filter((mr) => mr.member_id === authorMember.id).map((mr) => mr.role_id)
+    : [];
+  const authorRoles = roles
+    .filter((r) => authorRoleIds.includes(r.id))
+    .sort((a, b) => b.position - a.position);
+  const topRole = authorRoles[0];
+  const roleColor = topRole?.color;
+  const roleIcon = authorRoles.find((r) => r.icon)?.icon;
 
   const handleSaveEdit = async () => {
     if (editContent.trim() && editContent !== message.content) {
@@ -81,7 +97,8 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
             <div className="flex items-baseline gap-2">
               {message.author ? (
                 <UserProfileCard user={message.author} side="right" align="start">
-                  <span className="font-medium text-white hover:underline cursor-pointer">
+                  <span className="font-medium hover:underline cursor-pointer flex items-center gap-1" style={roleColor ? { color: roleColor } : { color: "white" }}>
+                    {roleIcon && <span className="text-sm">{roleIcon}</span>}
                     {message.author?.display_name || "Unknown"}
                   </span>
                 </UserProfileCard>

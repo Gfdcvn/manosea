@@ -110,8 +110,96 @@ export interface ServerRole {
   server_id: string;
   name: string;
   color: string;
+  icon: string | null;
+  is_elevated: boolean;
   permissions: number;
   position: number;
+  created_at: string;
+}
+
+// Permission bit flags
+export const PERMISSIONS = {
+  IS_ADMIN: 1 << 0,         // 1 - All permissions
+  CREATE_CHANNELS: 1 << 1,  // 2
+  CREATE_CATEGORIES: 1 << 2,// 4
+  EDIT_SETTINGS: 1 << 3,    // 8
+  EDIT_ROLES: 1 << 4,       // 16
+  EDIT_MEMBERS: 1 << 5,     // 32
+  MODERATE: 1 << 6,         // 64
+  INVITE_PEOPLE: 1 << 7,    // 128
+  SEND_MESSAGES: 1 << 8,    // 256
+} as const;
+
+export const PERMISSION_LABELS: Record<number, { name: string; description: string }> = {
+  [PERMISSIONS.IS_ADMIN]: { name: "Administrator", description: "Full access to all permissions" },
+  [PERMISSIONS.CREATE_CHANNELS]: { name: "Create Channels", description: "Can create text and voice channels" },
+  [PERMISSIONS.CREATE_CATEGORIES]: { name: "Create Categories", description: "Can create channel categories" },
+  [PERMISSIONS.EDIT_SETTINGS]: { name: "Edit Settings", description: "Can edit server settings" },
+  [PERMISSIONS.EDIT_ROLES]: { name: "Edit Roles", description: "Can create, edit, and delete roles" },
+  [PERMISSIONS.EDIT_MEMBERS]: { name: "Edit Members", description: "Can manage server members" },
+  [PERMISSIONS.MODERATE]: { name: "Moderate", description: "Can mute, suspend, and ban members" },
+  [PERMISSIONS.INVITE_PEOPLE]: { name: "Invite People", description: "Can create invite links" },
+  [PERMISSIONS.SEND_MESSAGES]: { name: "Send Messages", description: "Can send messages in channels" },
+};
+
+export function hasPermission(permissions: number, flag: number): boolean {
+  if (permissions & PERMISSIONS.IS_ADMIN) return true;
+  return (permissions & flag) !== 0;
+}
+
+export interface ServerMemberRole {
+  id: string;
+  server_id: string;
+  member_id: string;
+  role_id: string;
+  assigned_at: string;
+}
+
+export interface ServerBan {
+  id: string;
+  server_id: string;
+  user_id: string;
+  reason: string;
+  banned_by: string;
+  created_at: string;
+}
+
+export interface ServerMute {
+  id: string;
+  server_id: string;
+  user_id: string;
+  reason: string;
+  duration_days: number;
+  muted_by: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface ServerSuspension {
+  id: string;
+  server_id: string;
+  user_id: string;
+  reason: string;
+  duration_days: number;
+  suspended_by: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface ServerMemberNote {
+  id: string;
+  server_id: string;
+  user_id: string;
+  note: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface ChannelVisibilityOverride {
+  id: string;
+  channel_id: string;
+  user_id: string;
+  hidden: boolean;
   created_at: string;
 }
 

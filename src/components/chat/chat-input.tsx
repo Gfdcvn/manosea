@@ -33,19 +33,27 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
   const settings = useAuthStore((s) => s.settings);
   const currentUser = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
+  const serverMutes = useServerStore((s) => s.serverMutes);
+  const currentServer = useServerStore((s) => s.currentServer);
 
-  // Enforcement checks
+  // Enforcement checks - platform level
   const isMuted = currentUser?.is_muted && (!currentUser.mute_end || new Date(currentUser.mute_end) > new Date());
   const isSuspended = currentUser?.is_suspended && (!currentUser.suspension_end || new Date(currentUser.suspension_end) > new Date());
   const isBanned = currentUser?.is_banned;
   
+  // Server-level mute check
+  const isServerMuted = !isDm && currentUser && currentServer && serverMutes.some(
+    (m) => m.user_id === currentUser.id && m.server_id === currentServer.id && new Date(m.expires_at) > new Date()
+  );
+  
   // Muted = can't chat in servers, but CAN chat in DMs
   // Suspended = can't chat anywhere
-  const isChatBlocked = isBanned || isSuspended || (isMuted && !isDm);
+  const isChatBlocked = isBanned || isSuspended || (isMuted && !isDm) || isServerMuted;
 
   const getBlockedReason = () => {
     if (isBanned) return "You are banned and cannot send messages.";
     if (isSuspended) return `You are suspended${currentUser?.suspension_reason ? ` for: ${currentUser.suspension_reason}` : ""}. You cannot send messages.`;
+    if (isServerMuted) return "You are muted in this server and cannot send messages.";
     if (isMuted && !isDm) return `You are muted${currentUser?.mute_reason ? ` for: ${currentUser.mute_reason}` : ""}. You can only send DMs.`;
     return "";
   };

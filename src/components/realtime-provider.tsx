@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMessageStore } from "@/stores/message-store";
+import { useNotificationStore } from "@/stores/notification-store";
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -46,6 +47,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             if (data.dm_channel_id && data.author_id !== user.id) {
               markDmAsUnread(data.dm_channel_id);
               bumpDmChannel(data.dm_channel_id);
+
+              // Also track DM mentions for red badge
+              if (data.content) {
+                const username = useAuthStore.getState().user?.username;
+                if (
+                  data.content.includes("@everyone") ||
+                  data.content.includes("@here") ||
+                  (username && data.content.includes(`@${username}`))
+                ) {
+                  useNotificationStore.getState().addMention("dm", data.dm_channel_id);
+                }
+              }
             }
 
             // Handle server mention notifications
@@ -66,7 +79,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
                   .single();
 
                 if (channelData) {
-                  const { useNotificationStore } = await import("@/stores/notification-store");
                   useNotificationStore.getState().addMention(channelData.server_id, data.channel_id);
                 }
               }
@@ -87,8 +99,32 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           table: "users",
           filter: `id=neq.${user.id}`,
         },
-        () => {
-          // Status updates handled by component subscriptions
+        (payload) => {
+          const updated = payload.new as { id: string; status?: string; display_name?: string; avatar_url?: string | null };
+          // Update members in server store
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { useServerStore } = require("@/stores/server-store");
+          const serverState = useServerStore.getState();
+          const updatedMembers = serverState.members.map((m: { user?: { id: string } }) => {
+            if (m.user && m.user.id === updated.id) {
+              return { ...m, user: { ...m.user, ...updated } };
+            }
+            return m;
+          });
+          useServerStore.setState({ members: updatedMembers });
+
+          // Update DM channels in message store
+          const msgState = useMessageStore.getState();
+          const updatedDmChannels = msgState.dmChannels.map((dm) => {
+            if (dm.user1 && dm.user1.id === updated.id) {
+              return { ...dm, user1: { ...dm.user1, ...updated } } as typeof dm;
+            }
+            if (dm.user2 && dm.user2.id === updated.id) {
+              return { ...dm, user2: { ...dm.user2, ...updated } } as typeof dm;
+            }
+            return dm;
+          });
+          useMessageStore.setState({ dmChannels: updatedDmChannels });
         }
       )
       .subscribe();

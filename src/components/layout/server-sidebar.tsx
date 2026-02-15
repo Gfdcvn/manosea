@@ -31,6 +31,7 @@ export function ServerSidebar() {
 
   const isDmActive = pathname?.startsWith("/channels/me");
   const hasUnreadDms = unreadDmChannels.size > 0;
+  const dmMentionCount = useNotificationStore((s) => s.getServerMentionCount("dm"));
 
   // Fetch badges for all servers
   useEffect(() => {
@@ -67,9 +68,9 @@ export function ServerSidebar() {
               )}
             >
               <MessageCircle className="w-6 h-6" />
-              {hasUnreadDms && !isDmActive && (
+              {(hasUnreadDms || dmMentionCount > 0) && !isDmActive && (
                 <div className="absolute -bottom-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-discord-darker">
-                  {unreadDmChannels.size}
+                  {dmMentionCount > 0 ? dmMentionCount : unreadDmChannels.size}
                 </div>
               )}
             </button>

@@ -117,6 +117,8 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const categoryRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const stored = localStorage.getItem("recentEmojis");
@@ -134,6 +136,28 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose]);
+
+  // Update active category on scroll
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      if (search) return;
+      for (let i = categoryRefs.current.length - 1; i >= 0; i--) {
+        const ref = categoryRefs.current[i];
+        if (ref) {
+          const rect = ref.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          if (rect.top <= containerRect.top + 40) {
+            setActiveCategory(i);
+            break;
+          }
+        }
+      }
+    };
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [search]);
 
   const handleSelect = (emoji: string) => {
     onSelect(emoji);
@@ -172,7 +196,11 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
         {EMOJI_CATEGORIES.map((cat, idx) => (
           <button
             key={cat.name}
-            onClick={() => setActiveCategory(idx)}
+            onClick={() => {
+              setActiveCategory(idx);
+              setSearch("");
+              categoryRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
             className={`px-2 py-1 text-lg hover:bg-discord-hover rounded transition-colors shrink-0 ${
               activeCategory === idx ? "bg-discord-active" : ""
             }`}
@@ -184,7 +212,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       </div>
 
       {/* Emoji grid */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-2">
         {/* Recent emojis */}
         {!search && recentEmojis.length > 0 && (
           <div className="mb-3">
@@ -205,8 +233,10 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
           </div>
         )}
 
-        {filteredCategories.map((cat, catIdx) => (
-          <div key={cat.name} className="mb-3">
+        {filteredCategories.map((cat, catIdx) => {
+          const originalIdx = EMOJI_CATEGORIES.findIndex((c) => c.name === cat.name);
+          return (
+          <div key={cat.name} ref={(el) => { categoryRefs.current[originalIdx] = el; }} className="mb-3">
             <h3 className="text-xs font-semibold text-gray-400 uppercase mb-1 px-1 sticky top-0 bg-discord-channel">
               {cat.name}
             </h3>
@@ -222,7 +252,8 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Skin tone selector */}

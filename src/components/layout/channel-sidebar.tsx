@@ -26,7 +26,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
-import { Channel } from "@/types";
+import { Channel, PERMISSIONS, hasPermission } from "@/types";
 import { useNotificationStore } from "@/stores/notification-store";
 
 interface ChannelSidebarProps {
@@ -36,9 +36,15 @@ interface ChannelSidebarProps {
 export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer } = useServerStore();
+  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer, getMemberPermissions, channelOverrides, members } = useServerStore();
   const user = useAuthStore((s) => s.user);
   const isOwner = currentServer && user && currentServer.owner_id === user.id;
+  const currentMember = members.find((m) => m.user_id === user?.id);
+  const myPerms = currentMember ? getMemberPermissions(currentMember.id) : 0;
+  const canCreateChannels = isOwner || hasPermission(myPerms, PERMISSIONS.CREATE_CHANNELS) || hasPermission(myPerms, PERMISSIONS.IS_ADMIN);
+  const canCreateCategories = isOwner || hasPermission(myPerms, PERMISSIONS.CREATE_CATEGORIES) || hasPermission(myPerms, PERMISSIONS.IS_ADMIN);
+  const canInvite = isOwner || hasPermission(myPerms, PERMISSIONS.INVITE_PEOPLE) || hasPermission(myPerms, PERMISSIONS.IS_ADMIN);
+  const canManageChannels = isOwner || hasPermission(myPerms, PERMISSIONS.IS_ADMIN);
   const serverMentions = useNotificationStore((s) => s.serverMentions);
   const clearChannelMention = useNotificationStore((s) => s.clearChannelMention);
   const mentionedChannels = serverMentions[serverId] || new Set<string>();
@@ -137,11 +143,17 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     setChannelName("");
   };
 
+  // Filter channels by visibility overrides
+  const visibleChannels = user ? channels.filter((c) => {
+    const override = channelOverrides.find((o) => o.channel_id === c.id && o.user_id === user.id);
+    return !override || !override.hidden;
+  }) : channels;
+
   // Group channels by category
-  const uncategorized = channels.filter((c) => !c.category_id);
+  const uncategorized = visibleChannels.filter((c) => !c.category_id);
   const categorizedChannels = categories.map((cat) => ({
     category: cat,
-    channels: channels.filter((c) => c.category_id === cat.id),
+    channels: visibleChannels.filter((c) => c.category_id === cat.id),
   }));
 
   // Drag and drop
@@ -159,7 +171,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
 
   const handleDrop = async (e: React.DragEvent, categoryId: string | null) => {
     e.preventDefault();
-    if (draggedChannelId && isOwner) {
+    if (draggedChannelId && canManageChannels) {
       await moveChannel(draggedChannelId, categoryId, serverId);
     }
     setDraggedChannelId(null);
@@ -181,21 +193,29 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
             <Plus className="w-4 h-4 opacity-0 group-hover:opacity-100" />
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => openCreateDialog("text")}>
-              <Hash className="w-4 h-4 mr-2" />
-              Create Text Channel
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openCreateDialog("voice")}>
-              <Volume2 className="w-4 h-4 mr-2" />
-              Create Voice Channel
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openCreateDialog("category")}>
-              Create Category
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleCreateInvite}>
-              Create Invite
-            </DropdownMenuItem>
+            {canCreateChannels && (
+              <>
+                <DropdownMenuItem onClick={() => openCreateDialog("text")}>
+                  <Hash className="w-4 h-4 mr-2" />
+                  Create Text Channel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openCreateDialog("voice")}>
+                  <Volume2 className="w-4 h-4 mr-2" />
+                  Create Voice Channel
+                </DropdownMenuItem>
+              </>
+            )}
+            {canCreateCategories && (
+              <DropdownMenuItem onClick={() => openCreateDialog("category")}>
+                Create Category
+              </DropdownMenuItem>
+            )}
+            {(canCreateChannels || canCreateCategories) && canInvite && <DropdownMenuSeparator />}
+            {canInvite && (
+              <DropdownMenuItem onClick={handleCreateInvite}>
+                Create Invite
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -215,7 +235,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                 clearChannelMention(serverId, channel.id);
                 router.push(`/channels/${serverId}/${channel.id}`);
               }}
-              isOwner={!!isOwner}
+              isOwner={!!canManageChannels}
               onRename={(newName) => renameChannel(channel.id, newName, serverId)}
               onDelete={() => deleteChannel(channel.id, serverId)}
               onDragStart={() => handleDragStart(channel.id)}
@@ -242,7 +262,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                 />
                 {category.name}
               </button>
-              {isOwner && (
+              {canCreateChannels && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -282,7 +302,7 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                       clearChannelMention(serverId, channel.id);
                       router.push(`/channels/${serverId}/${channel.id}`);
                     }}
-                    isOwner={!!isOwner}
+                    isOwner={!!canManageChannels}
                     onRename={(newName) => renameChannel(channel.id, newName, serverId)}
                     onDelete={() => deleteChannel(channel.id, serverId)}
                     onDragStart={() => handleDragStart(channel.id)}
