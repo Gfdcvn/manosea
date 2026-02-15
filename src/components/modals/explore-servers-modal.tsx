@@ -84,6 +84,18 @@ export function ExploreServersModal({ open, onClose }: ExploreServersModalProps)
     setJoiningId(serverId);
     const supabase = createClient();
 
+    // Check if banned from this server
+    const { data: ban } = await supabase
+      .from("server_bans")
+      .select("id")
+      .eq("server_id", serverId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (ban) {
+      setJoiningId(null);
+      return;
+    }
+
     // Check if already a member
     const { data: existing } = await supabase
       .from("server_members")

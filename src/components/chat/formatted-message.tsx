@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { InvitePreview } from "./invite-preview";
 
 interface FormattedMessageProps {
   text: string;
@@ -153,6 +154,17 @@ function parseInline(text: string): React.ReactNode[] {
 }
 
 export function FormattedMessage({ text }: FormattedMessageProps) {
+  // Extract potential invite codes - standalone 8-char alphanumeric strings
+  const inviteCodes = useMemo(() => {
+    const codeRegex = /(?:^|\s)([A-Za-z0-9]{8})(?:\s|$)/g;
+    const codes: string[] = [];
+    let m;
+    while ((m = codeRegex.exec(text)) !== null) {
+      if (!codes.includes(m[1])) codes.push(m[1]);
+    }
+    return codes;
+  }, [text]);
+
   const rendered = useMemo(() => {
     // Split by code blocks first
     const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
@@ -194,7 +206,14 @@ export function FormattedMessage({ text }: FormattedMessageProps) {
     return parts;
   }, [text]);
 
-  return <>{rendered}</>;
+  return (
+    <>
+      {rendered}
+      {inviteCodes.map((code) => (
+        <InvitePreview key={code} code={code} />
+      ))}
+    </>
+  );
 }
 
 function processLines(text: string, startKey: number): React.ReactNode[] {

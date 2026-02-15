@@ -101,23 +101,8 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     setInviteCode("");
     setInviteCopied(false);
     setInviteExpiry("7");
-    setShowInviteDialog(true);
-    // Auto-generate one
-    setInviteLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setInviteLoading(false); return; }
-
-    const code = generateInviteCode();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    await supabase.from("server_invites").insert({
-      server_id: serverId,
-      code,
-      created_by: user.id,
-      expires_at: expiresAt,
-    });
-    setInviteCode(code);
     setInviteLoading(false);
+    setShowInviteDialog(true);
   };
 
   const handleCopyInvite = () => {

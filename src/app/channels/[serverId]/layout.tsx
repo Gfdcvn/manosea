@@ -21,7 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Settings, UserPlus, Trash2 } from "lucide-react";
+import { ChevronDown, Settings, UserPlus, Trash2, Copy, Check, RefreshCw, LogOut } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
 import { hasPermission, PERMISSIONS } from "@/types";
@@ -39,6 +40,7 @@ export default function ServerLayout({
 
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   useEffect(() => {
     if (serverId && serverId !== "me") {
@@ -94,16 +96,59 @@ export default function ServerLayout({
   const canManageServer = isOwner || hasPermission(myPerms, PERMISSIONS.EDIT_SETTINGS);
   const canInvite = isOwner || hasPermission(myPerms, PERMISSIONS.INVITE_PEOPLE);
 
-  const handleCreateInvite = async () => {
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteExpiry, setInviteExpiry] = useState("7");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const handleCreateInvite = () => {
+    setInviteCode("");
+    setInviteCopied(false);
+    setInviteExpiry("7");
+    setInviteLoading(false);
+    setShowInviteDialog(true);
+  };
+
+  const generateInvite = async () => {
+    setInviteLoading(true);
+    setInviteCopied(false);
     const supabase = createClient();
-    if (!user) return;
+    if (!user) { setInviteLoading(false); return; }
+
     const code = generateInviteCode();
+    const expiryDays = parseInt(inviteExpiry);
+    const expiresAt = expiryDays > 0
+      ? new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
     await supabase.from("server_invites").insert({
       server_id: serverId,
       code,
       created_by: user.id,
+      ...(expiresAt ? { expires_at: expiresAt } : {}),
     });
-    navigator.clipboard.writeText(code);
+
+    setInviteCode(code);
+    setInviteLoading(false);
+  };
+
+  const handleCopyInvite = () => {
+    navigator.clipboard.writeText(inviteCode);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
+  };
+
+  const handleLeaveServer = async () => {
+    if (!user) return;
+    const supabase = createClient();
+    await supabase
+      .from("server_members")
+      .delete()
+      .eq("server_id", serverId)
+      .eq("user_id", user.id);
+    await fetchServers();
+    router.push("/channels/me");
   };
 
   const handleDeleteServer = async () => {
@@ -159,7 +204,7 @@ export default function ServerLayout({
                 </DropdownMenuItem>
               </>
             )}
-            {isOwner && (
+            {isOwner ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -168,6 +213,17 @@ export default function ServerLayout({
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete Server
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setShowLeaveConfirm(true)}
+                  destructive
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Leave Server
                 </DropdownMenuItem>
               </>
             )}
@@ -183,6 +239,94 @@ export default function ServerLayout({
       {showSettings && (
         <ServerSettings serverId={serverId} onClose={() => setShowSettings(false)} />
       )}
+
+      {/* Invite Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Server Invite</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                Invite Code
+              </Label>
+              {inviteLoading ? (
+                <div className="bg-discord-dark rounded-lg px-4 py-3 text-sm text-gray-400 animate-pulse">
+                  Generating...
+                </div>
+              ) : inviteCode ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-discord-dark rounded-lg px-4 py-3 text-white font-mono text-sm select-all">
+                    {inviteCode}
+                  </div>
+                  <Button
+                    onClick={handleCopyInvite}
+                    variant="ghost"
+                    className="shrink-0 px-3"
+                  >
+                    {inviteCopied ? (
+                      <Check className="w-4 h-4 text-discord-green" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+              {inviteCopied && (
+                <p className="text-xs text-discord-green mt-1">Copied to clipboard!</p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                Expire After
+              </Label>
+              <select
+                value={inviteExpiry}
+                onChange={(e) => setInviteExpiry(e.target.value)}
+                className="w-full bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-discord-brand"
+              >
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="0">Never</option>
+              </select>
+            </div>
+
+            <Button
+              onClick={generateInvite}
+              variant="ghost"
+              className="w-full gap-2"
+              disabled={inviteLoading}
+            >
+              <RefreshCw className={`w-4 h-4 ${inviteLoading ? "animate-spin" : ""}`} />
+              Generate New Invite
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave Confirm Dialog */}
+      <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Leave Server</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-400">
+            Are you sure you want to leave <strong className="text-white">{currentServer.name}</strong>? You won{"'"} be able to rejoin unless you are re-invited.
+          </p>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="ghost" onClick={() => setShowLeaveConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleLeaveServer}>
+              Leave Server
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirm Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
