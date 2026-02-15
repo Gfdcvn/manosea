@@ -203,6 +203,14 @@ export interface ChannelVisibilityOverride {
   created_at: string;
 }
 
+export interface RoleChannelOverride {
+  id: string;
+  role_id: string;
+  channel_id: string;
+  hidden: boolean;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   content: string | null;

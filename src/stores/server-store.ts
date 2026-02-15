@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Server, Channel, Category, ServerMember, ServerRole, ServerMemberRole, ServerBan, ServerMute, ServerSuspension, ServerMemberNote, ChannelVisibilityOverride, PERMISSIONS } from "@/types";
+import { Server, Channel, Category, ServerMember, ServerRole, ServerMemberRole, ServerBan, ServerMute, ServerSuspension, ServerMemberNote, ChannelVisibilityOverride, RoleChannelOverride, PERMISSIONS } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 
 interface ServerState {
@@ -15,6 +15,7 @@ interface ServerState {
   serverSuspensions: ServerSuspension[];
   memberNotes: ServerMemberNote[];
   channelOverrides: ChannelVisibilityOverride[];
+  roleChannelOverrides: RoleChannelOverride[];
   isLoading: boolean;
 
   setServers: (servers: Server[]) => void;
@@ -50,6 +51,8 @@ interface ServerState {
   deleteMemberNote: (noteId: string, serverId: string) => Promise<void>;
   setChannelVisibility: (channelId: string, userId: string, hidden: boolean) => Promise<void>;
   removeChannelVisibility: (channelId: string, userId: string) => Promise<void>;
+  setRoleChannelVisibility: (roleId: string, channelId: string, hidden: boolean) => Promise<void>;
+  removeRoleChannelVisibility: (roleId: string, channelId: string) => Promise<void>;
   fetchServerModeration: (serverId: string) => Promise<void>;
 }
 
@@ -66,6 +69,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
   serverSuspensions: [],
   memberNotes: [],
   channelOverrides: [],
+  roleChannelOverrides: [],
   isLoading: false,
 
   setServers: (servers) => set({ servers }),
@@ -441,14 +445,37 @@ export const useServerStore = create<ServerState>((set, get) => ({
     if (serverId) await get().fetchServerModeration(serverId);
   },
 
+  setRoleChannelVisibility: async (roleId, channelId, hidden) => {
+    const supabase = createClient();
+    await supabase.from("role_channel_overrides").upsert({
+      role_id: roleId,
+      channel_id: channelId,
+      hidden,
+    }, { onConflict: "role_id,channel_id" });
+    const serverId = get().currentServer?.id;
+    if (serverId) await get().fetchServerModeration(serverId);
+  },
+
+  removeRoleChannelVisibility: async (roleId, channelId) => {
+    const supabase = createClient();
+    await supabase.from("role_channel_overrides").delete().eq("role_id", roleId).eq("channel_id", channelId);
+    const serverId = get().currentServer?.id;
+    if (serverId) await get().fetchServerModeration(serverId);
+  },
+
   fetchServerModeration: async (serverId) => {
     const supabase = createClient();
-    const [bansRes, mutesRes, suspensionsRes, notesRes, overridesRes] = await Promise.all([
+    const channelIds = get().channels.map((c) => c.id);
+    const roleIds = get().roles.map((r) => r.id);
+    const [bansRes, mutesRes, suspensionsRes, notesRes, overridesRes, roleOverridesRes] = await Promise.all([
       supabase.from("server_bans").select("*").eq("server_id", serverId),
       supabase.from("server_mutes").select("*").eq("server_id", serverId),
       supabase.from("server_suspensions").select("*").eq("server_id", serverId),
       supabase.from("server_member_notes").select("*").eq("server_id", serverId),
-      supabase.from("channel_visibility_overrides").select("*").in("channel_id", get().channels.map((c) => c.id)),
+      supabase.from("channel_visibility_overrides").select("*").in("channel_id", channelIds),
+      roleIds.length > 0
+        ? supabase.from("role_channel_overrides").select("*").in("role_id", roleIds)
+        : Promise.resolve({ data: [] }),
     ]);
     set({
       serverBans: (bansRes.data || []) as ServerBan[],
@@ -456,6 +483,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       serverSuspensions: (suspensionsRes.data || []) as ServerSuspension[],
       memberNotes: (notesRes.data || []) as ServerMemberNote[],
       channelOverrides: (overridesRes.data || []) as ChannelVisibilityOverride[],
+      roleChannelOverrides: (roleOverridesRes.data || []) as RoleChannelOverride[],
     });
   },
 }));

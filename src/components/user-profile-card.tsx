@@ -5,6 +5,7 @@ import { User, UserBadge, Punishment } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useServerStore } from "@/stores/server-store";
 import {
   Popover,
   PopoverContent,
@@ -284,22 +285,56 @@ export function UserProfileCard({
               </p>
             </div>
 
-            {/* Role badge */}
-            {user.role !== "user" && (
-              <div className="mt-3">
-                <h4 className="text-xs font-bold text-white uppercase mb-1">Roles</h4>
-                <span
-                  className={cn(
-                    "text-xs px-2 py-0.5 rounded-full",
-                    user.role === "superadmin"
-                      ? "bg-red-500/20 text-red-400"
-                      : "bg-blue-500/20 text-blue-400"
-                  )}
-                >
-                  {user.role === "superadmin" ? "Super Admin" : "Admin"}
-                </span>
-              </div>
-            )}
+            {/* Roles */}
+            {(() => {
+              const currentServer = useServerStore.getState().currentServer;
+              const members = useServerStore.getState().members;
+              const roles = useServerStore.getState().roles;
+              const memberRoles = useServerStore.getState().memberRoles;
+
+              // Find this user's member record in the current server
+              const member = currentServer ? members.find((m) => m.user_id === user.id) : null;
+              const userRoles = member
+                ? memberRoles
+                    .filter((mr) => mr.member_id === member.id)
+                    .map((mr) => roles.find((r) => r.id === mr.role_id))
+                    .filter((r): r is NonNullable<typeof r> => !!r && r.name !== "@everyone")
+                    .sort((a, b) => a.position - b.position)
+                : [];
+
+              const showSection = userRoles.length > 0 || user.role !== "user";
+              if (!showSection) return null;
+
+              return (
+                <div className="mt-3">
+                  <h4 className="text-xs font-bold text-white uppercase mb-1">Roles</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {userRoles.map((role) => (
+                      <span
+                        key={role.id}
+                        className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1"
+                        style={{ backgroundColor: role.color + "30", color: role.color }}
+                      >
+                        {role.icon && <span>{role.icon}</span>}
+                        {role.name}
+                      </span>
+                    ))}
+                    {user.role !== "user" && (
+                      <span
+                        className={cn(
+                          "text-xs px-2 py-0.5 rounded-full",
+                          user.role === "superadmin"
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-blue-500/20 text-blue-400"
+                        )}
+                      >
+                        {user.role === "superadmin" ? "Super Admin" : "Admin"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </PopoverContent>

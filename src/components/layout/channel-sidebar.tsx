@@ -36,7 +36,7 @@ interface ChannelSidebarProps {
 export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer, getMemberPermissions, channelOverrides, members } = useServerStore();
+  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer, getMemberPermissions, channelOverrides, roleChannelOverrides, memberRoles, members } = useServerStore();
   const user = useAuthStore((s) => s.user);
   const isOwner = currentServer && user && currentServer.owner_id === user.id;
   const currentMember = members.find((m) => m.user_id === user?.id);
@@ -143,10 +143,23 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
     setChannelName("");
   };
 
-  // Filter channels by visibility overrides
+  // Filter channels by visibility overrides (per-user and per-role)
+  const isAdmin = isOwner || hasPermission(myPerms, PERMISSIONS.IS_ADMIN);
   const visibleChannels = user ? channels.filter((c) => {
-    const override = channelOverrides.find((o) => o.channel_id === c.id && o.user_id === user.id);
-    return !override || !override.hidden;
+    // Admins/owners always see everything
+    if (isAdmin) return true;
+    // Per-user override takes priority
+    const userOverride = channelOverrides.find((o) => o.channel_id === c.id && o.user_id === user.id);
+    if (userOverride?.hidden) return false;
+    // Per-role override: hidden if any of user's roles hides this channel
+    if (currentMember) {
+      const myRoleIds = memberRoles.filter((mr) => mr.member_id === currentMember.id).map((mr) => mr.role_id);
+      const hiddenByRole = roleChannelOverrides.some(
+        (o) => o.channel_id === c.id && o.hidden && myRoleIds.includes(o.role_id)
+      );
+      if (hiddenByRole) return false;
+    }
+    return true;
   }) : channels;
 
   // Group channels by category

@@ -65,6 +65,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
     createRole, updateRole, deleteRole, assignRole, removeRole, getMemberRoles, getMemberPermissions,
     serverBanUser, serverMuteUser, serverUnmuteUser, serverSuspendUser, serverUnsuspendUser,
     addMemberNote, deleteMemberNote, setChannelVisibility, removeChannelVisibility,
+    setRoleChannelVisibility, removeRoleChannelVisibility, roleChannelOverrides,
     fetchServerModeration, serverMutes, serverSuspensions, memberNotes, channelOverrides, channels,
   } = useServerStore();
   const user = useAuthStore((s) => s.user);
@@ -548,6 +549,10 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
               <RolesTab
                 serverId={serverId}
                 roles={roles}
+                channels={channels}
+                roleChannelOverrides={roleChannelOverrides}
+                setRoleChannelVisibility={setRoleChannelVisibility}
+                removeRoleChannelVisibility={removeRoleChannelVisibility}
                 createRole={createRole}
                 updateRole={updateRole}
                 deleteRole={deleteRole}
@@ -607,15 +612,19 @@ const ROLE_ICONS = [
 interface RolesTabProps {
   serverId: string;
   roles: ServerRole[];
+  channels: import("@/types").Channel[];
+  roleChannelOverrides: import("@/types").RoleChannelOverride[];
+  setRoleChannelVisibility: (roleId: string, channelId: string, hidden: boolean) => Promise<void>;
+  removeRoleChannelVisibility: (roleId: string, channelId: string) => Promise<void>;
   createRole: (serverId: string, data: { name: string; color: string; icon?: string | null; is_elevated?: boolean; permissions: number }) => Promise<void>;
   updateRole: (roleId: string, serverId: string, data: Partial<ServerRole>) => Promise<void>;
   deleteRole: (roleId: string, serverId: string) => Promise<void>;
 }
 
-function RolesTab({ serverId, roles, createRole, updateRole, deleteRole }: RolesTabProps) {
+function RolesTab({ serverId, roles, channels, roleChannelOverrides, setRoleChannelVisibility, removeRoleChannelVisibility, createRole, updateRole, deleteRole }: RolesTabProps) {
   const [editingRole, setEditingRole] = useState<ServerRole | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [roleTab, setRoleTab] = useState<"settings" | "permissions">("settings");
+  const [roleTab, setRoleTab] = useState<"settings" | "permissions" | "channels">("settings");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Role form state
@@ -721,6 +730,17 @@ function RolesTab({ serverId, roles, createRole, updateRole, deleteRole }: Roles
             )}
           >
             Permissions
+          </button>
+          <button
+            onClick={() => setRoleTab("channels")}
+            className={cn(
+              "flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+              roleTab === "channels"
+                ? "bg-discord-brand text-white"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            Channels
           </button>
         </div>
 
@@ -839,6 +859,60 @@ function RolesTab({ serverId, roles, createRole, updateRole, deleteRole }: Roles
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {roleTab === "channels" && (editingRole || isCreating) && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400 mb-3">
+              Choose which channels members with this role can see. Hidden channels will not appear in their channel list.
+            </p>
+            {isCreating ? (
+              <p className="text-sm text-gray-500 italic">Save the role first, then configure channel visibility.</p>
+            ) : editingRole && (
+              <>
+                {channels.length === 0 ? (
+                  <p className="text-sm text-gray-500">No channels in this server.</p>
+                ) : (
+                  channels.map((channel) => {
+                    const override = roleChannelOverrides.find(
+                      (o) => o.role_id === editingRole.id && o.channel_id === channel.id
+                    );
+                    const isHidden = override?.hidden || false;
+                    return (
+                      <div
+                        key={channel.id}
+                        className="flex items-center justify-between bg-discord-darker rounded-lg px-4 py-3 border border-gray-800"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Hash className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-white">{channel.name}</span>
+                          <span className="text-[10px] text-gray-500 uppercase">{channel.type}</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (isHidden) {
+                              await removeRoleChannelVisibility(editingRole.id, channel.id);
+                            } else {
+                              await setRoleChannelVisibility(editingRole.id, channel.id, true);
+                            }
+                          }}
+                          className={cn(
+                            "p-1.5 rounded-md transition-colors",
+                            isHidden
+                              ? "text-red-400 bg-red-400/10 hover:bg-red-400/20"
+                              : "text-green-400 bg-green-400/10 hover:bg-green-400/20"
+                          )}
+                          title={isHidden ? "Hidden — click to make visible" : "Visible — click to hide"}
+                        >
+                          {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </>
+            )}
           </div>
         )}
 
