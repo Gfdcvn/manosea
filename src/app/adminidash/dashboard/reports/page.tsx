@@ -6,13 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Flag, CheckCircle, Eye, XCircle, Clock, MessageSquare, User as UserIcon, Server } from "lucide-react";
-import { Report, ReportStatus, User } from "@/types";
+import { Flag, CheckCircle, Eye, XCircle, Clock, MessageSquare, User as UserIcon, Server, Trash2, Gavel, Image as ImageIcon } from "lucide-react";
+import { Report, ReportStatus, User, Message, Attachment } from "@/types";
 import { formatRelativeTime } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type ReportWithJoins = Report & {
   reporter?: User | null;
   target_user?: User | null;
+};
+
+type MessageWithAuthor = Message & {
+  author?: User | null;
+  attachments?: Attachment[];
 };
 
 export default function AdminReportsPage() {
@@ -21,6 +34,13 @@ export default function AdminReportsPage() {
   const [filter, setFilter] = useState<ReportStatus | "all">("all");
   const [selectedReport, setSelectedReport] = useState<ReportWithJoins | null>(null);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [reportedMessage, setReportedMessage] = useState<MessageWithAuthor | null>(null);
+  const [messageDeleted, setMessageDeleted] = useState(false);
+  const [showPunishDialog, setShowPunishDialog] = useState(false);
+  const [punishType, setPunishType] = useState("warn");
+  const [punishReason, setPunishReason] = useState("");
+  const [punishDuration, setPunishDuration] = useState("7");
+  const [punishExpiry, setPunishExpiry] = useState("30");
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
@@ -53,6 +73,87 @@ export default function AdminReportsPage() {
     await fetchReports();
     setSelectedReport(null);
     setResolutionNote("");
+    setReportedMessage(null);
+  };
+
+  // Fetch reported message when a message report is selected
+  useEffect(() => {
+    if (!selectedReport?.target_message_id) {
+      setReportedMessage(null);
+      setMessageDeleted(false);
+      return;
+    }
+    const fetchMessage = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*, author:users!messages_author_id_fkey(*), attachments(*)")
+        .eq("id", selectedReport.target_message_id!)
+        .maybeSingle();
+      if (error || !data) {
+        setReportedMessage(null);
+        setMessageDeleted(true);
+      } else {
+        setReportedMessage(data as MessageWithAuthor);
+        setMessageDeleted(false);
+      }
+    };
+    fetchMessage();
+  }, [selectedReport?.target_message_id]);
+
+  const handleDeleteMessage = async () => {
+    if (!selectedReport?.target_message_id) return;
+    const supabase = createClient();
+    await supabase.from("messages").delete().eq("id", selectedReport.target_message_id);
+    setReportedMessage(null);
+    setMessageDeleted(true);
+  };
+
+  const handlePunishUser = async () => {
+    if (!selectedReport?.target_user_id || !punishReason.trim()) return;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const durationDays = parseInt(punishDuration) || null;
+    const expiryDays = parseInt(punishExpiry) || null;
+    const expiresAt = durationDays ? new Date(Date.now() + durationDays * 86400000).toISOString() : null;
+    const becomesPastAt = expiryDays ? new Date(Date.now() + expiryDays * 86400000).toISOString() : null;
+
+    await supabase.from("user_punishments").insert({
+      user_id: selectedReport.target_user_id,
+      type: punishType,
+      reason: punishReason,
+      issued_by: user.id,
+      expires_at: expiresAt,
+      becomes_past_at: becomesPastAt,
+      is_active: true,
+      popup_shown: false,
+    });
+
+    // Update user enforcement flags
+    const updateData: Record<string, unknown> = {};
+    if (punishType === "mute") {
+      updateData.is_muted = true;
+      updateData.mute_reason = punishReason;
+      updateData.mute_end = expiresAt;
+    } else if (punishType === "suspend") {
+      updateData.is_suspended = true;
+      updateData.suspension_reason = punishReason;
+      updateData.suspension_end = expiresAt;
+    } else if (punishType === "ban") {
+      updateData.is_banned = true;
+      updateData.is_suspended = true;
+      updateData.ban_reason = punishReason;
+      updateData.banned_by = user.id;
+      updateData.suspension_reason = punishReason;
+      updateData.suspension_end = expiresAt;
+    }
+    if (Object.keys(updateData).length > 0) {
+      await supabase.from("users").update(updateData).eq("id", selectedReport.target_user_id);
+    }
+    setShowPunishDialog(false);
+    setPunishReason("");
+    setPunishType("warn");
   };
 
   const statusColors: Record<string, string> = {
@@ -211,6 +312,78 @@ export default function AdminReportsPage() {
             )}
           </div>
 
+          {/* Reported message preview */}
+          {selectedReport.target_message_id && (
+            <div className="bg-discord-dark rounded-lg p-4 mb-4 border border-gray-700">
+              <p className="text-xs text-gray-500 mb-2 font-semibold uppercase">Reported Message</p>
+              {messageDeleted ? (
+                <p className="text-sm text-red-400 italic">Message has been deleted.</p>
+              ) : reportedMessage ? (
+                <div className="flex items-start gap-3">
+                  <Avatar className="w-8 h-8 shrink-0 mt-0.5">
+                    <AvatarImage src={reportedMessage.author?.avatar_url || undefined} />
+                    <AvatarFallback className="text-xs">{reportedMessage.author?.display_name?.charAt(0) || "?"}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-white">{reportedMessage.author?.display_name || "Unknown"}</span>
+                      <span className="text-xs text-gray-500">@{reportedMessage.author?.username || "unknown"}</span>
+                      <span className="text-xs text-gray-600">{new Date(reportedMessage.created_at).toLocaleString()}</span>
+                    </div>
+                    {reportedMessage.content && (
+                      <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">{reportedMessage.content}</p>
+                    )}
+                    {reportedMessage.attachments && reportedMessage.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {reportedMessage.attachments.map((att) => (
+                          <div key={att.id} className="flex items-center gap-1.5 bg-discord-darker rounded px-2 py-1">
+                            <ImageIcon className="w-3 h-3 text-gray-400" />
+                            <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-discord-brand hover:underline truncate max-w-[200px]">
+                              {att.file_name}
+                            </a>
+                            <span className="text-[10px] text-gray-500">({(att.file_size / 1024).toFixed(1)} KB)</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic animate-pulse">Loading message...</p>
+              )}
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          {(selectedReport.status === "open" || selectedReport.status === "reviewing") && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {selectedReport.target_message_id && !messageDeleted && reportedMessage && (
+                <Button
+                  size="sm"
+                  onClick={handleDeleteMessage}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" /> Delete Message
+                </Button>
+              )}
+              {selectedReport.target_user_id && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setPunishReason(selectedReport.reason || "");
+                    setPunishType("warn");
+                    setPunishDuration("7");
+                    setPunishExpiry("30");
+                    setShowPunishDialog(true);
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  <Gavel className="w-3 h-3 mr-1" /> Punish User
+                </Button>
+              )}
+            </div>
+          )}
+
           {selectedReport.details && (
             <div className="bg-discord-dark rounded-lg p-3 mb-4">
               <p className="text-xs text-gray-500 mb-1">Details:</p>
@@ -262,6 +435,81 @@ export default function AdminReportsPage() {
           )}
         </div>
       )}
+
+      {/* Punish User Dialog */}
+      <Dialog open={showPunishDialog} onOpenChange={setShowPunishDialog}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-orange-400" />
+              Punish User
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Target</p>
+              <p className="text-sm text-white">{selectedReport?.target_user?.display_name || "Unknown"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Type</p>
+              <select
+                value={punishType}
+                onChange={(e) => setPunishType(e.target.value)}
+                className="w-full bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-discord-brand"
+              >
+                <option value="warn">Warn</option>
+                <option value="mute">Mute</option>
+                <option value="suspend">Suspend</option>
+                <option value="ban">Ban</option>
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Reason</p>
+              <textarea
+                value={punishReason}
+                onChange={(e) => setPunishReason(e.target.value)}
+                className="w-full h-20 bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-discord-brand"
+                placeholder="Reason for punishment..."
+              />
+            </div>
+            {punishType !== "warn" && (
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Duration (days)</p>
+                <Input
+                  type="number"
+                  value={punishDuration}
+                  onChange={(e) => setPunishDuration(e.target.value)}
+                  min="1"
+                  placeholder="7"
+                  className="text-sm"
+                />
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Standing Expiry (days)</p>
+              <Input
+                type="number"
+                value={punishExpiry}
+                onChange={(e) => setPunishExpiry(e.target.value)}
+                min="1"
+                placeholder="30"
+                className="text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">How long this affects user standing</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowPunishDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handlePunishUser}
+              disabled={!punishReason.trim()}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              Issue Punishment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

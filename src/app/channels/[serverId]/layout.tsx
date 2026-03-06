@@ -21,11 +21,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Settings, UserPlus, Trash2, Copy, Check, RefreshCw, LogOut, AlertTriangle, Crown } from "lucide-react";
+import { ChevronDown, Settings, UserPlus, Trash2, Copy, Check, RefreshCw, LogOut, AlertTriangle, Crown, BadgeCheck } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
-import { hasPermission, PERMISSIONS } from "@/types";
+import { hasPermission, PERMISSIONS, ServerBadge } from "@/types";
 
 export default function ServerLayout({
   children,
@@ -47,6 +47,7 @@ export default function ServerLayout({
   const [serverSuspended, setServerSuspended] = useState(false);
   const [suspensionReason, setSuspensionReason] = useState<string | null>(null);
   const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
+  const [serverBadges, setServerBadges] = useState<ServerBadge[]>([]);
 
   useEffect(() => {
     if (serverId && serverId !== "me") {
@@ -104,6 +105,19 @@ export default function ServerLayout({
 
     return () => setCurrentServer(null);
   }, [serverId, servers, setCurrentServer, fetchServerDetails, fetchServerModeration, user, router]);
+
+  // Fetch server badges
+  useEffect(() => {
+    if (!serverId || serverId === "me") return;
+    const supabase = createClient();
+    supabase
+      .from("server_badges")
+      .select("*, badge:badges(*)")
+      .eq("server_id", serverId)
+      .then(({ data }) => {
+        setServerBadges((data as ServerBadge[]) || []);
+      });
+  }, [serverId]);
 
   const currentServer = useServerStore((s) => s.currentServer);
   const members = useServerStore((s) => s.members);
@@ -271,6 +285,14 @@ export default function ServerLayout({
             <button className="h-12 border-b border-gray-800 flex items-center justify-between px-4 shadow-sm w-full hover:bg-discord-hover transition-colors">
               <div className="flex items-center gap-2 min-w-0">
                 <h2 className="text-white font-semibold truncate">{currentServer.name}</h2>
+                {currentServer.is_verified && (
+                  <BadgeCheck className="w-4 h-4 text-discord-brand shrink-0" />
+                )}
+                {serverBadges.map((sb) => (
+                  <span key={sb.id} title={sb.badge?.name} className="text-sm shrink-0">
+                    {sb.badge?.icon}
+                  </span>
+                ))}
                 {currentServer.tag && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-discord-brand/20 text-discord-brand font-medium shrink-0 uppercase">
                     {currentServer.tag}

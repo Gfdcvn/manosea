@@ -11,11 +11,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Plus, Compass, MessageCircle, BadgeCheck, AlertTriangle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { CreateServerModal } from "@/components/modals/create-server-modal";
 import { ExploreServersModal } from "@/components/modals/explore-servers-modal";
-import { createClient } from "@/lib/supabase/client";
-import { ServerBadge } from "@/types";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useMessageStore } from "@/stores/message-store";
 
@@ -24,7 +22,6 @@ export function ServerSidebar() {
   const pathname = usePathname();
   const servers = useServerStore((s) => s.servers);
   const [showCreateServer, setShowCreateServer] = useState(false);
-  const [serverBadgesMap, setServerBadgesMap] = useState<Record<string, ServerBadge[]>>({});
   const [showExplore, setShowExplore] = useState(false);
   const serverMentions = useNotificationStore((s) => s.serverMentions);
   const unreadDmChannels = useMessageStore((s) => s.unreadDmChannels);
@@ -32,25 +29,6 @@ export function ServerSidebar() {
   const isDmActive = pathname?.startsWith("/channels/me");
   const hasUnreadDms = unreadDmChannels.size > 0;
   const dmMentionCount = useNotificationStore((s) => s.getServerMentionCount("dm"));
-
-  // Fetch badges for all servers
-  useEffect(() => {
-    if (servers.length === 0) return;
-    const supabase = createClient();
-    const serverIds = servers.map((s) => s.id);
-    supabase
-      .from("server_badges")
-      .select("*, badge:badges(*)")
-      .in("server_id", serverIds)
-      .then(({ data }) => {
-        const map: Record<string, ServerBadge[]> = {};
-        (data as ServerBadge[] || []).forEach((sb) => {
-          if (!map[sb.server_id]) map[sb.server_id] = [];
-          map[sb.server_id].push(sb);
-        });
-        setServerBadgesMap(map);
-      });
-  }, [servers]);
 
   return (
     <>
@@ -143,17 +121,7 @@ export function ServerSidebar() {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <div className="flex items-center gap-1.5">
-                      <span>{server.name}</span>
-                      {server.is_verified && (
-                        <BadgeCheck className="w-4 h-4 text-discord-brand" />
-                      )}
-                      {serverBadgesMap[server.id]?.map((sb) => (
-                        <span key={sb.id} title={sb.badge?.name} className="text-sm">
-                          {sb.badge?.icon}
-                        </span>
-                      ))}
-                    </div>
+                    <span>{server.name}</span>
                   </TooltipContent>
                 </Tooltip>
               );

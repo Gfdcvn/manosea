@@ -113,6 +113,7 @@ export default function SettingsPage() {
   const [nameGradientEnd, setNameGradientEnd] = useState<string | null>(null);
   const [nameFont, setNameFont] = useState<NameFont>("default");
   const [nameColorMode, setNameColorMode] = useState<"none" | "solid" | "gradient">("none");
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -123,6 +124,7 @@ export default function SettingsPage() {
         setCustomColor(user.profile_color);
       }
       setAvatarPreview(user.avatar_url || null);
+      setBannerPreview(user.banner_url || null);
       setNameColor(user.name_color || null);
       setNameGradientStart(user.name_gradient_start || null);
       setNameGradientEnd(user.name_gradient_end || null);
@@ -214,6 +216,34 @@ export default function SettingsPage() {
     }
   };
 
+  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    const reader = new FileReader();
+    reader.onload = () => setBannerPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    // Auto-upload banner
+    const supabase = createClient();
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/banner.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("banners")
+      .upload(path, file, { upsert: true });
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage.from("banners").getPublicUrl(path);
+      await updateProfile({ banner_url: publicUrl });
+      flashSaved();
+    }
+  };
+
+  const handleRemoveBanner = async () => {
+    if (!user) return;
+    setBannerPreview(null);
+    await updateProfile({ banner_url: null });
+    flashSaved();
+  };
+
   if (!user) return null;
 
   const standing = getStandingInfo(user.standing_level);
@@ -274,6 +304,47 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-white font-semibold">{user.display_name}</p>
                     <p className="text-gray-400 text-sm">@{user.username}</p>
+                  </div>
+                </div>
+
+                {/* Profile Banner */}
+                <div className="mb-6">
+                  <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                    Profile Banner
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-2">Recommended size: 600x240. Displayed on your profile card.</p>
+                  <div className="relative group rounded-lg overflow-hidden" style={{ height: bannerPreview ? "120px" : "80px" }}>
+                    {bannerPreview ? (
+                      <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover" />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        style={{ backgroundColor: profileColor || "#5865f2" }}
+                      >
+                        <span className="text-xs text-white/50">No banner set</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <label className="px-3 py-1.5 bg-discord-brand rounded-md text-white text-xs font-medium cursor-pointer hover:bg-discord-brand/80 transition-colors">
+                        <Upload className="w-3.5 h-3.5 inline mr-1" />
+                        Upload
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleBannerChange}
+                        />
+                      </label>
+                      {bannerPreview && (
+                        <button
+                          onClick={handleRemoveBanner}
+                          className="px-3 py-1.5 bg-red-600 rounded-md text-white text-xs font-medium hover:bg-red-700 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5 inline mr-1" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

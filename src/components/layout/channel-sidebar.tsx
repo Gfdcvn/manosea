@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Hash, Volume2, ChevronDown, Plus, Copy, Check, RefreshCw, Settings, Pencil, Trash2 } from "lucide-react";
+import { Hash, Volume2, ChevronDown, Plus, Copy, Check, RefreshCw, Settings, Pencil, Trash2, Shield } from "lucide-react";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -26,7 +26,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
-import { Channel, PERMISSIONS, hasPermission } from "@/types";
+import { Channel, PERMISSIONS, hasPermission, ServerRole, RoleChannelOverride } from "@/types";
 import { useNotificationStore } from "@/stores/notification-store";
 
 interface ChannelSidebarProps {
@@ -36,7 +36,7 @@ interface ChannelSidebarProps {
 export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer, getMemberPermissions, channelOverrides, roleChannelOverrides, memberRoles, members } = useServerStore();
+  const { channels, categories, createChannel, createCategory, renameChannel, deleteChannel, moveChannel, currentServer, getMemberPermissions, channelOverrides, roleChannelOverrides, memberRoles, members, roles } = useServerStore();
   const user = useAuthStore((s) => s.user);
   const isOwner = currentServer && user && currentServer.owner_id === user.id;
   const currentMember = members.find((m) => m.user_id === user?.id);
@@ -240,6 +240,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
               onDragEnd={handleDragEnd}
               isDragging={draggedChannelId === channel.id}
               hasMention={mentionedChannels.has(channel.id)}
+              roles={roles}
+              roleChannelOverrides={roleChannelOverrides}
+              serverId={serverId}
             />
           ))}
         </div>
@@ -307,6 +310,9 @@ export function ChannelSidebar({ serverId }: ChannelSidebarProps) {
                     onDragEnd={handleDragEnd}
                     isDragging={draggedChannelId === channel.id}
                     hasMention={mentionedChannels.has(channel.id)}
+                    roles={roles}
+                    roleChannelOverrides={roleChannelOverrides}
+                    serverId={serverId}
                   />
                 ))}
               </div>
@@ -452,6 +458,9 @@ function ChannelButton({
   onDragEnd,
   isDragging,
   hasMention,
+  roles,
+  roleChannelOverrides,
+  serverId,
 }: {
   channel: Channel;
   isActive: boolean;
@@ -463,10 +472,15 @@ function ChannelButton({
   onDragEnd?: () => void;
   isDragging?: boolean;
   hasMention?: boolean;
+  roles?: ServerRole[];
+  roleChannelOverrides?: RoleChannelOverride[];
+  serverId?: string;
 }) {
   const [showRename, setShowRename] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPermissions, setShowPermissions] = useState(false);
   const [newName, setNewName] = useState(channel.name);
+  const [permOverrides, setPermOverrides] = useState<Record<string, boolean>>({});
 
   const handleRename = () => {
     const name = newName.trim();
@@ -524,6 +538,18 @@ function ChannelButton({
                 <Pencil className="w-4 h-4 mr-2" />
                 Rename Channel
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                // Build overrides map from existing role_channel_overrides
+                const map: Record<string, boolean> = {};
+                (roleChannelOverrides || [])
+                  .filter((o) => o.channel_id === channel.id)
+                  .forEach((o) => { map[o.role_id] = o.hidden; });
+                setPermOverrides(map);
+                setShowPermissions(true);
+              }}>
+                <Shield className="w-4 h-4 mr-2" />
+                Edit Permissions
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowDeleteConfirm(true)} className="text-red-400 focus:text-red-400">
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -568,6 +594,85 @@ function ChannelButton({
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Channel Permissions Dialog */}
+      <Dialog open={showPermissions} onOpenChange={setShowPermissions}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Shield className="w-5 h-5 text-discord-brand" />
+              Channel Permissions — #{channel.name}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-500 mb-3">
+            Control which roles can see this channel. Hidden roles won{"'"}t see this channel in the sidebar.
+          </p>
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {(roles || []).map((role) => {
+              const isHidden = permOverrides[role.id] === true;
+              return (
+                <div
+                  key={role.id}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-discord-hover transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: role.color }} />
+                    {role.icon && <span className="text-sm">{role.icon}</span>}
+                    <span className="text-sm text-gray-200 truncate">{role.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        const newOverrides = { ...permOverrides };
+                        if (isHidden) {
+                          delete newOverrides[role.id];
+                        } else {
+                          newOverrides[role.id] = true;
+                        }
+                        setPermOverrides(newOverrides);
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                        isHidden
+                          ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                          : "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                      )}
+                    >
+                      {isHidden ? "Hidden" : "Visible"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowPermissions(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!serverId) return;
+                const store = useServerStore.getState();
+                const existingOverrides = (roleChannelOverrides || []).filter((o) => o.channel_id === channel.id);
+
+                // Remove overrides that were cleared
+                for (const existing of existingOverrides) {
+                  if (!(existing.role_id in permOverrides)) {
+                    await store.removeRoleChannelVisibility(existing.role_id, channel.id);
+                  }
+                }
+
+                // Set/update overrides
+                for (const [roleId, hidden] of Object.entries(permOverrides)) {
+                  await store.setRoleChannelVisibility(roleId, channel.id, hidden);
+                }
+
+                setShowPermissions(false);
+              }}
+            >
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
