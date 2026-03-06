@@ -9,7 +9,7 @@ import { formatRelativeTime } from "@/lib/utils";
 import { Pencil, Trash2, Copy, Pin, PinOff, Flag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UserProfileCard } from "@/components/user-profile-card";
+import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
 import { FormattedMessage } from "@/components/chat/formatted-message";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -105,7 +105,7 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
             <div className="flex items-baseline gap-2">
               {message.author ? (
                 <UserProfileCard user={message.author} side="right" align="start">
-                  <span className="font-medium hover:underline cursor-pointer flex items-center gap-1" style={roleColor ? { color: roleColor } : { color: "white" }}>
+                  <span className="font-medium hover:underline cursor-pointer flex items-center gap-1" style={{ ...(roleColor ? { color: roleColor } : { color: "white" }), ...(message.author ? getNameStyle(message.author) : {}) }}>
                     {roleIcon && <span className="text-sm">{roleIcon}</span>}
                     {message.author?.display_name || "Unknown"}
                   </span>

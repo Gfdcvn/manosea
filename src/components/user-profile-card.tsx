@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, UserBadge, Punishment, NAME_FONTS, NameFont } from "@/types";
+import { User, UserBadge, Punishment, NAME_FONTS, NameFont, PERMISSIONS, hasPermission } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useServerStore } from "@/stores/server-store";
+import { useAuthStore } from "@/stores/auth-store";
 import {
   Popover,
   PopoverContent,
@@ -17,7 +18,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Headphones, Hammer, Drama } from "lucide-react";
+import { Headphones, Hammer, Drama, UserPlus, UserMinus, X, Check, Search } from "lucide-react";
+
 
 interface UserProfileCardProps {
   user: User;
@@ -53,6 +55,11 @@ export function UserProfileCard({
   const [open, setOpen] = useState(false);
   const [joinedServerName, setJoinedServerName] = useState<string | null>(null);
   const [joinedServerDate, setJoinedServerDate] = useState<string | null>(null);
+  const [editingRoles, setEditingRoles] = useState(false);
+  const [roleSearch, setRoleSearch] = useState("");
+  const [friendStatus, setFriendStatus] = useState<"none" | "friends" | "pending_sent" | "pending_received">("none");
+  const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +107,65 @@ export function UserProfileCard({
     fetchBadges();
     fetchPunishments();
   }, [open, user.id]);
+
+  // Fetch friend status
+  useEffect(() => {
+    if (!open || !currentUser || currentUser.id === user.id) return;
+    const fetchFriendStatus = async () => {
+      const supabase = createClient();
+      const { data: requests } = await supabase
+        .from("friend_requests")
+        .select("id, sender_id, receiver_id, status")
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${user.id}),and(sender_id.eq.${user.id},receiver_id.eq.${currentUser.id})`)
+        .in("status", ["accepted", "pending"]);
+
+      if (requests && requests.length > 0) {
+        const req = requests[0];
+        setFriendRequestId(req.id);
+        if (req.status === "accepted") {
+          setFriendStatus("friends");
+        } else if (req.sender_id === currentUser.id) {
+          setFriendStatus("pending_sent");
+        } else {
+          setFriendStatus("pending_received");
+        }
+      } else {
+        setFriendStatus("none");
+        setFriendRequestId(null);
+      }
+    };
+    fetchFriendStatus();
+  }, [open, user.id, currentUser]);
+
+  const handleAddFriend = async () => {
+    if (!currentUser) return;
+    const supabase = createClient();
+    await supabase.from("friend_requests").insert({ sender_id: currentUser.id, receiver_id: user.id });
+    setFriendStatus("pending_sent");
+  };
+
+  const handleCancelRequest = async () => {
+    if (!friendRequestId) return;
+    const supabase = createClient();
+    await supabase.from("friend_requests").delete().eq("id", friendRequestId);
+    setFriendStatus("none");
+    setFriendRequestId(null);
+  };
+
+  const handleRemoveFriend = async () => {
+    if (!friendRequestId) return;
+    const supabase = createClient();
+    await supabase.from("friend_requests").delete().eq("id", friendRequestId);
+    setFriendStatus("none");
+    setFriendRequestId(null);
+  };
+
+  const handleAcceptFriend = async () => {
+    if (!friendRequestId) return;
+    const supabase = createClient();
+    await supabase.from("friend_requests").update({ status: "accepted" }).eq("id", friendRequestId);
+    setFriendStatus("friends");
+  };
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -286,6 +352,48 @@ export function UserProfileCard({
             </div>
           )}
 
+          {/* Friend action buttons */}
+          {currentUser && currentUser.id !== user.id && (
+            <div className="flex gap-2 mb-3">
+              {friendStatus === "none" && (
+                <button
+                  onClick={handleAddFriend}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-discord-brand/20 text-discord-brand text-xs font-medium hover:bg-discord-brand/30 transition-colors"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Add Friend
+                </button>
+              )}
+              {friendStatus === "pending_sent" && (
+                <button
+                  onClick={handleCancelRequest}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-700/50 text-gray-300 text-xs font-medium hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancel Request
+                </button>
+              )}
+              {friendStatus === "pending_received" && (
+                <button
+                  onClick={handleAcceptFriend}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-discord-green/20 text-discord-green text-xs font-medium hover:bg-discord-green/30 transition-colors"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Accept Request
+                </button>
+              )}
+              {friendStatus === "friends" && (
+                <button
+                  onClick={handleRemoveFriend}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-700/50 text-gray-300 text-xs font-medium hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                >
+                  <UserMinus className="w-3.5 h-3.5" />
+                  Remove Friend
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Roles */}
           {(() => {
             const currentServer = useServerStore.getState().currentServer;
@@ -300,24 +408,116 @@ export function UserProfileCard({
                   .filter((r): r is NonNullable<typeof r> => !!r && r.name !== "@everyone")
                   .sort((a, b) => a.position - b.position)
               : [];
-            const showSection = userRoles.length > 0 || user.role !== "user";
+            
+            // Check if current user has EDIT_MEMBERS permission
+            const currentMember = currentUser && currentServer ? members.find((m) => m.user_id === currentUser.id) : null;
+            const currentMemberPerms = currentMember ? useServerStore.getState().getMemberPermissions(currentMember.id) : 0;
+            const canEditMembers = currentUser && currentServer && (
+              currentServer.owner_id === currentUser.id || hasPermission(currentMemberPerms, PERMISSIONS.EDIT_MEMBERS)
+            );
+            const isViewingSelf = currentUser?.id === user.id;
+            
+            const showSection = userRoles.length > 0 || user.role !== "user" || (canEditMembers && !isViewingSelf && currentServer);
             if (!showSection) return null;
+
+            const availableRoles = roles.filter((r) => r.name !== "@everyone");
+            const filteredRoles = availableRoles.filter((r) =>
+              r.name.toLowerCase().includes(roleSearch.toLowerCase())
+            );
+
             return (
               <div className="mt-2">
-                <h4 className="text-[11px] font-bold text-gray-400 uppercase mb-1.5">Roles</h4>
-                <div className="flex flex-wrap gap-1">
-                  {userRoles.map((role) => (
-                    <span key={role.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: role.color + "30", color: role.color }}>
-                      {role.icon && <span>{role.icon}</span>}
-                      {role.name}
-                    </span>
-                  ))}
-                  {user.role !== "user" && (
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full", user.role === "superadmin" ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400")}>
-                      {user.role === "superadmin" ? "Super Admin" : "Admin"}
-                    </span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-[11px] font-bold text-gray-400 uppercase">Roles</h4>
+                  {canEditMembers && !isViewingSelf && currentServer && member && (
+                    <button
+                      onClick={() => { setEditingRoles(!editingRoles); setRoleSearch(""); }}
+                      className="text-[10px] text-discord-brand hover:text-discord-brand/80 font-medium"
+                    >
+                      {editingRoles ? "Done" : "Edit"}
+                    </button>
                   )}
                 </div>
+                
+                {editingRoles && canEditMembers && member ? (
+                  <div className="space-y-2">
+                    {/* Selected roles */}
+                    {userRoles.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {userRoles.map((role) => (
+                          <span key={role.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: role.color + "30", color: role.color }}>
+                            {role.icon && <span>{role.icon}</span>}
+                            {role.name}
+                            <button
+                              onClick={async () => {
+                                await useServerStore.getState().removeRole(currentServer!.id, member.id, role.id);
+                              }}
+                              className="ml-0.5 hover:opacity-70"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Dropdown */}
+                    <div className="bg-discord-darker rounded-lg border border-gray-700 overflow-hidden">
+                      <div className="p-1.5">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" />
+                          <input
+                            value={roleSearch}
+                            onChange={(e) => setRoleSearch(e.target.value)}
+                            placeholder="Search roles..."
+                            className="w-full pl-6 pr-2 py-1 text-xs bg-discord-dark rounded border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-discord-brand"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto p-1">
+                        {filteredRoles.map((role) => {
+                          const hasRole = userRoles.some((r) => r.id === role.id);
+                          return (
+                            <button
+                              key={role.id}
+                              onClick={async () => {
+                                if (hasRole) {
+                                  await useServerStore.getState().removeRole(currentServer!.id, member.id, role.id);
+                                } else {
+                                  await useServerStore.getState().assignRole(currentServer!.id, member.id, role.id);
+                                }
+                              }}
+                              className="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-discord-hover text-left"
+                            >
+                              <div
+                                className={cn("w-3 h-3 rounded border flex items-center justify-center shrink-0", hasRole ? "border-transparent" : "border-gray-600")}
+                                style={hasRole ? { backgroundColor: role.color } : {}}
+                              >
+                                {hasRole && <Check className="w-2 h-2 text-white" />}
+                              </div>
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: role.color }} />
+                              {role.icon && <span className="text-xs">{role.icon}</span>}
+                              <span className="text-xs text-gray-200 truncate">{role.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {userRoles.map((role) => (
+                      <span key={role.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: role.color + "30", color: role.color }}>
+                        {role.icon && <span>{role.icon}</span>}
+                        {role.name}
+                      </span>
+                    ))}
+                    {user.role !== "user" && (
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", user.role === "superadmin" ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400")}>
+                        {user.role === "superadmin" ? "Super Admin" : "Admin"}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}

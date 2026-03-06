@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Settings, UserPlus, Trash2, Copy, Check, RefreshCw, LogOut } from "lucide-react";
+import { ChevronDown, Settings, UserPlus, Trash2, Copy, Check, RefreshCw, LogOut, AlertTriangle, Crown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
@@ -41,6 +41,12 @@ export default function ServerLayout({
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showTransferOwnership, setShowTransferOwnership] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState("");
+  const [transferConfirm, setTransferConfirm] = useState(false);
+  const [serverSuspended, setServerSuspended] = useState(false);
+  const [suspensionReason, setSuspensionReason] = useState<string | null>(null);
+  const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
 
   useEffect(() => {
     if (serverId && serverId !== "me") {
@@ -49,6 +55,20 @@ export default function ServerLayout({
         setCurrentServer(server);
         fetchServerDetails(serverId);
         fetchServerModeration(serverId);
+
+        // Check if server itself is suspended
+        if (server.is_suspended) {
+          setServerSuspended(true);
+          setSuspensionReason(server.suspension_reason || "No reason provided");
+          // Fetch owner username
+          const supabase = createClient();
+          supabase.from("users").select("username, display_name").eq("id", server.owner_id).single().then(({ data }) => {
+            setOwnerUsername(data?.display_name || data?.username || "Unknown");
+          });
+        } else {
+          setServerSuspended(false);
+          setSuspensionReason(null);
+        }
         
         // Check for server ban or suspension
         if (user) {
@@ -158,10 +178,77 @@ export default function ServerLayout({
     router.push("/channels/me");
   };
 
+  const handleTransferOwnership = async () => {
+    if (!user || !transferTargetId || !currentServer) return;
+    const supabase = createClient();
+    
+    // Update server owner
+    await supabase.from("servers").update({ owner_id: transferTargetId }).eq("id", serverId);
+    
+    // Send a DM notification to the new owner via system bot
+    const SYSTEM_BOT_ID = "00000000-0000-0000-0000-000000000001";
+    const { data: existingDm } = await supabase
+      .from("dm_channels")
+      .select("*")
+      .or(`and(user1_id.eq.${SYSTEM_BOT_ID},user2_id.eq.${transferTargetId}),and(user1_id.eq.${transferTargetId},user2_id.eq.${SYSTEM_BOT_ID})`)
+      .single();
+
+    let dmId = existingDm?.id;
+    if (!dmId) {
+      const { data: newDm } = await supabase
+        .from("dm_channels")
+        .insert({ user1_id: SYSTEM_BOT_ID, user2_id: transferTargetId })
+        .select()
+        .single();
+      dmId = newDm?.id;
+    }
+
+    if (dmId) {
+      await supabase.from("messages").insert({
+        content: `👑 **Ownership Transfer**\n\nYou are now the owner of **${currentServer.name}**! This was transferred to you by **${user.display_name}**.`,
+        dm_channel_id: dmId,
+        author_id: SYSTEM_BOT_ID,
+      });
+    }
+
+    await fetchServers();
+    setShowTransferOwnership(false);
+  };
+
   if (!currentServer) {
     return (
       <div className="flex-1 flex items-center justify-center bg-discord-chat">
         <div className="animate-pulse text-discord-muted">Loading server...</div>
+      </div>
+    );
+  }
+
+  // Server suspended banner
+  if (serverSuspended) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-discord-chat">
+        <div className="max-w-lg w-full mx-auto text-center p-8">
+          <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle className="w-10 h-10 text-red-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Server Suspended</h1>
+          <p className="text-gray-300 mb-4">
+            <strong>{currentServer.name}</strong> has been suspended by the platform administrators.
+          </p>
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+            <p className="text-sm font-semibold text-red-400 mb-1">Reason</p>
+            <p className="text-sm text-gray-300">{suspensionReason || "No reason provided"}</p>
+          </div>
+          {ownerUsername && (
+            <p className="text-xs text-gray-500 mb-6">
+              <Crown className="w-3 h-3 inline mr-1" />
+              Server owner: <span className="text-gray-400">{ownerUsername}</span>
+            </p>
+          )}
+          <Button onClick={() => router.push("/channels/me")} variant="ghost">
+            Return to DMs
+          </Button>
+        </div>
       </div>
     );
   }
@@ -212,6 +299,10 @@ export default function ServerLayout({
             {isOwner ? (
               <>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setTransferTargetId(""); setTransferConfirm(false); setShowTransferOwnership(true); }}>
+                  <Crown className="w-4 h-4 mr-2 text-yellow-400" />
+                  Transfer Ownership
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowDeleteConfirm(true)}
                   destructive
@@ -350,6 +441,68 @@ export default function ServerLayout({
               Delete Server
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Ownership Dialog */}
+      <Dialog open={showTransferOwnership} onOpenChange={setShowTransferOwnership}>
+        <DialogContent className="bg-discord-darker border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Crown className="w-5 h-5 text-yellow-400" />
+              Transfer Ownership
+            </DialogTitle>
+          </DialogHeader>
+          {!transferConfirm ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-400">
+                Select a member to transfer ownership of <strong className="text-white">{currentServer.name}</strong> to:
+              </p>
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {members.filter((m) => m.user_id !== user?.id).map((member) => {
+                  const memberUser = member.user;
+                  if (!memberUser) return null;
+                  return (
+                    <button
+                      key={member.id}
+                      onClick={() => setTransferTargetId(member.user_id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        transferTargetId === member.user_id
+                          ? "bg-discord-brand/20 border border-discord-brand"
+                          : "hover:bg-discord-hover border border-transparent"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-discord-brand flex items-center justify-center text-sm text-white font-medium shrink-0">
+                        {memberUser.display_name?.charAt(0) || "?"}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm text-white">{memberUser.display_name}</p>
+                        <p className="text-xs text-gray-400">@{memberUser.username}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setShowTransferOwnership(false)}>Cancel</Button>
+                <Button onClick={() => setTransferConfirm(true)} disabled={!transferTargetId}>
+                  Continue
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-red-400">
+                ⚠️ Are you absolutely sure? You will lose all owner privileges for <strong className="text-white">{currentServer.name}</strong>. This action is immediate.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setTransferConfirm(false)}>Back</Button>
+                <Button variant="destructive" onClick={handleTransferOwnership}>
+                  Transfer Ownership
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

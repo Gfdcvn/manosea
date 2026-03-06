@@ -54,6 +54,11 @@ export default function AdminServersPage() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastSending, setBroadcastSending] = useState(false);
 
+  // Suspend dialog state
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [suspendTarget, setSuspendTarget] = useState<ServerInfo | null>(null);
+
   useEffect(() => {
     fetchServers();
     fetchAllBadges();
@@ -86,10 +91,38 @@ export default function AdminServersPage() {
     setLoading(false);
   };
 
-  const toggleSuspend = async (serverId: string, currentState: boolean) => {
+  const toggleSuspend = async (serverId: string, currentState: boolean, reason?: string) => {
     const supabase = createClient();
-    await supabase.from("servers").update({ is_suspended: !currentState }).eq("id", serverId);
+    if (currentState) {
+      // Unsuspending
+      await supabase.from("servers").update({ is_suspended: false, suspension_reason: null }).eq("id", serverId);
+    } else {
+      // Suspending
+      await supabase.from("servers").update({ is_suspended: true, suspension_reason: reason || null }).eq("id", serverId);
+    }
     fetchServers();
+  };
+
+  const handleSuspendWithReason = () => {
+    if (!suspendTarget) return;
+    toggleSuspend(suspendTarget.id, suspendTarget.is_suspended, suspendReason);
+    if (!suspendTarget.is_suspended) {
+      // was active, now suspended — update the local selected server too
+      setSelectedServer(
+        selectedServer?.id === suspendTarget.id
+          ? { ...selectedServer, is_suspended: true }
+          : selectedServer
+      );
+    } else {
+      setSelectedServer(
+        selectedServer?.id === suspendTarget.id
+          ? { ...selectedServer, is_suspended: false }
+          : selectedServer
+      );
+    }
+    setShowSuspendDialog(false);
+    setSuspendReason("");
+    setSuspendTarget(null);
   };
 
   const openServerDetail = async (server: ServerInfo) => {
@@ -247,7 +280,15 @@ export default function AdminServersPage() {
                     <Eye className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => toggleSuspend(server.id, server.is_suspended)}
+                    onClick={() => {
+                      if (server.is_suspended) {
+                        toggleSuspend(server.id, true);
+                      } else {
+                        setSuspendTarget(server);
+                        setSuspendReason("");
+                        setShowSuspendDialog(true);
+                      }
+                    }}
                     className={`text-xs px-2 py-1 rounded ${
                       server.is_suspended
                         ? "bg-green-500/10 text-green-400 hover:bg-green-500/20"
@@ -358,11 +399,14 @@ export default function AdminServersPage() {
                   size="sm"
                   variant={selectedServer.is_suspended ? "default" : "destructive"}
                   onClick={() => {
-                    toggleSuspend(selectedServer.id, selectedServer.is_suspended);
-                    setSelectedServer({
-                      ...selectedServer,
-                      is_suspended: !selectedServer.is_suspended,
-                    });
+                    if (selectedServer.is_suspended) {
+                      toggleSuspend(selectedServer.id, true);
+                      setSelectedServer({ ...selectedServer, is_suspended: false });
+                    } else {
+                      setSuspendTarget(selectedServer);
+                      setSuspendReason("");
+                      setShowSuspendDialog(true);
+                    }
                   }}
                 >
                   {selectedServer.is_suspended ? "Unsuspend Server" : "Suspend Server"}
@@ -449,6 +493,40 @@ export default function AdminServersPage() {
                 disabled={!broadcastMessage.trim() || broadcastSending}
               >
                 {broadcastSending ? "Sending..." : "Send to All Members"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend Reason Dialog */}
+      <Dialog open={showSuspendDialog} onOpenChange={(open) => { if (!open) { setShowSuspendDialog(false); setSuspendReason(""); setSuspendTarget(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Suspend {suspendTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-gray-400">
+              Suspending this server will prevent all members from accessing it. They will see a suspension banner with the reason you provide.
+            </p>
+            <div>
+              <Label className="text-xs font-bold text-gray-300 uppercase">Reason for Suspension</Label>
+              <Textarea
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                placeholder="Enter the reason for suspending this server..."
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => { setShowSuspendDialog(false); setSuspendReason(""); setSuspendTarget(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleSuspendWithReason}
+              >
+                Suspend Server
               </Button>
             </div>
           </div>

@@ -24,6 +24,8 @@ import {
   Users,
   Plus,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   Pencil,
   Ban,
   VolumeX,
@@ -1070,6 +1072,21 @@ function RolesTab({ serverId, roles, channels, roleChannelOverrides, setRoleChan
   }
 
   // Role list view
+  const sortedRoles = [...roles].sort((a, b) => b.position - a.position);
+
+  const handleMoveRole = async (roleId: string, direction: "up" | "down") => {
+    const idx = sortedRoles.findIndex((r) => r.id === roleId);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sortedRoles.length) return;
+    const role = sortedRoles[idx];
+    const swapRole = sortedRoles[swapIdx];
+    if (role.name === "@everyone" || swapRole.name === "@everyone") return;
+    // Swap positions
+    await updateRole(role.id, serverId, { position: swapRole.position });
+    await updateRole(swapRole.id, serverId, { position: role.position });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1083,14 +1100,34 @@ function RolesTab({ serverId, roles, channels, roleChannelOverrides, setRoleChan
       </div>
 
       <div className="space-y-1">
-        {roles
-          .sort((a, b) => b.position - a.position)
-          .map((role) => (
-            <button
+        {sortedRoles.map((role, idx) => (
+            <div
               key={role.id}
-              onClick={() => startEdit(role)}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-discord-darker border border-gray-800 hover:border-gray-600 transition-colors group"
             >
+              {/* Reorder buttons */}
+              {role.name !== "@everyone" && (
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button
+                    onClick={() => handleMoveRole(role.id, "up")}
+                    disabled={idx === 0 || sortedRoles[idx - 1]?.name === "@everyone"}
+                    className="p-0.5 rounded hover:bg-discord-hover text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveRole(role.id, "down")}
+                    disabled={idx >= sortedRoles.length - 1 || sortedRoles[idx + 1]?.name === "@everyone"}
+                    className="p-0.5 rounded hover:bg-discord-hover text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => startEdit(role)}
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
               <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: role.color }} />
               {role.icon && <span className="text-lg">{role.icon}</span>}
               <span className="text-white font-medium">{role.name}</span>
@@ -1100,8 +1137,113 @@ function RolesTab({ serverId, roles, channels, roleChannelOverrides, setRoleChan
                 </span>
               )}
               <Pencil className="w-4 h-4 text-gray-500 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
+              </button>
+            </div>
           ))}
+      </div>
+    </div>
+  );
+}
+
+// ==================== ROLE MULTISELECT ====================
+
+function RoleMultiSelect({
+  roles,
+  selectedRoleIds,
+  onToggle,
+}: {
+  roles: ServerRole[];
+  selectedRoleIds: string[];
+  onToggle: (roleId: string, hasRole: boolean) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [roleSearch, setRoleSearch] = useState("");
+
+  const filteredRoles = roles.filter((r) =>
+    r.name.toLowerCase().includes(roleSearch.toLowerCase())
+  );
+
+  const selectedRoles = roles.filter((r) => selectedRoleIds.includes(r.id));
+
+  return (
+    <div className="mt-2">
+      {/* Selected roles display */}
+      {selectedRoles.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selectedRoles.map((role) => (
+            <span
+              key={role.id}
+              className="px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
+              style={{ backgroundColor: role.color + "30", color: role.color }}
+            >
+              {role.icon && <span>{role.icon}</span>}
+              {role.name}
+              <button
+                onClick={() => onToggle(role.id, true)}
+                className="ml-0.5 hover:opacity-70"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Dropdown trigger */}
+      <div className="relative">
+        <button
+          onClick={() => setOpen(!open)}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-gray-700 bg-discord-dark text-sm text-gray-300 hover:border-gray-500 transition-colors"
+        >
+          <span>{open ? "Close" : "Add / Remove Roles"}</span>
+          <ChevronDown className={cn("w-4 h-4 transition-transform", open && "rotate-180")} />
+        </button>
+
+        {open && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-discord-dark border border-gray-700 rounded-lg shadow-xl z-10 max-h-64 overflow-hidden flex flex-col">
+            <div className="p-2 border-b border-gray-700">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                <Input
+                  value={roleSearch}
+                  onChange={(e) => setRoleSearch(e.target.value)}
+                  placeholder="Search roles..."
+                  className="pl-8 h-8 text-sm bg-discord-darker"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="overflow-y-auto max-h-48 p-1">
+              {filteredRoles.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-3">No roles found</p>
+              ) : (
+                filteredRoles.map((role) => {
+                  const isSelected = selectedRoleIds.includes(role.id);
+                  return (
+                    <button
+                      key={role.id}
+                      onClick={() => onToggle(role.id, isSelected)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-discord-hover transition-colors"
+                    >
+                      <div
+                        className={cn(
+                          "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                          isSelected ? "border-transparent" : "border-gray-600"
+                        )}
+                        style={isSelected ? { backgroundColor: role.color } : {}}
+                      >
+                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: role.color }} />
+                      {role.icon && <span className="text-sm">{role.icon}</span>}
+                      <span className="text-sm text-gray-200">{role.name}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1146,8 +1288,13 @@ function MembersTab(props: MembersTabProps) {
     currentUserId,
   } = props;
 
+  const serverBans = useServerStore((s) => s.serverBans);
+  const serverUnbanUser = useServerStore((s) => s.serverUnbanUser);
+
   const [search, setSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<import("@/types").ServerMember | null>(null);
+  const [membersView, setMembersView] = useState<"members" | "banned">("members");
+  const [bannedUsers, setBannedUsers] = useState<Array<{ ban: import("@/types").ServerBan; user: import("@/types").User | null }>>([]);
 
   // Mod action dialogs
   const [showMuteDialog, setShowMuteDialog] = useState(false);
@@ -1162,6 +1309,22 @@ function MembersTab(props: MembersTabProps) {
   useEffect(() => {
     fetchServerModeration(serverId);
   }, [serverId, fetchServerModeration]);
+
+  // Fetch banned users' profiles
+  useEffect(() => {
+    const fetchBannedProfiles = async () => {
+      if (serverBans.length === 0) { setBannedUsers([]); return; }
+      const supabase = createClient();
+      const userIds = serverBans.map((b) => b.user_id);
+      const { data: users } = await supabase.from("users").select("*").in("id", userIds);
+      const result = serverBans.map((ban) => ({
+        ban,
+        user: (users || []).find((u: import("@/types").User) => u.id === ban.user_id) || null,
+      }));
+      setBannedUsers(result);
+    };
+    fetchBannedProfiles();
+  }, [serverBans]);
 
   const filteredMembers = members.filter((m) => {
     if (!search) return true;
@@ -1240,40 +1403,20 @@ function MembersTab(props: MembersTabProps) {
           </div>
         </div>
 
-        {/* Roles assignment */}
+        {/* Roles assignment — multiselect dropdown with search */}
         <div className="bg-discord-darker rounded-lg p-4 border border-gray-800">
           <Label className="text-xs font-bold text-gray-300 uppercase mb-3">Roles</Label>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {roles.filter((r) => r.name !== "@everyone").map((role) => {
-              const hasRole = selectedMemberRoles.some((r) => r.id === role.id);
-              return (
-                <button
-                  key={role.id}
-                  onClick={async () => {
-                    if (hasRole) {
-                      await removeRole(serverId, selectedMember.id, role.id);
-                    } else {
-                      await assignRole(serverId, selectedMember.id, role.id);
-                    }
-                  }}
-                  className={cn(
-                    "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 transition-all border",
-                    hasRole
-                      ? "border-transparent text-white"
-                      : "border-gray-700 text-gray-400 hover:border-gray-500"
-                  )}
-                  style={hasRole ? { backgroundColor: role.color + "30", color: role.color, borderColor: role.color } : {}}
-                >
-                  {role.icon && <span>{role.icon}</span>}
-                  {role.name}
-                  {hasRole && <X className="w-3 h-3 ml-1" />}
-                </button>
-              );
-            })}
-            {roles.filter((r) => r.name !== "@everyone").length === 0 && (
-              <p className="text-sm text-gray-500">No custom roles yet.</p>
-            )}
-          </div>
+          <RoleMultiSelect
+            roles={roles.filter((r) => r.name !== "@everyone")}
+            selectedRoleIds={selectedMemberRoles.map((r) => r.id)}
+            onToggle={async (roleId, hasRole) => {
+              if (hasRole) {
+                await removeRole(serverId, selectedMember.id, roleId);
+              } else {
+                await assignRole(serverId, selectedMember.id, roleId);
+              }
+            }}
+          />
         </div>
 
         {/* Active mutes */}
@@ -1520,6 +1663,70 @@ function MembersTab(props: MembersTabProps) {
   // Member list view
   return (
     <div className="space-y-4">
+      {/* Members / Banned toggle */}
+      <div className="flex gap-1 bg-discord-darker rounded-lg p-1">
+        <button
+          onClick={() => setMembersView("members")}
+          className={cn(
+            "flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+            membersView === "members" ? "bg-discord-brand text-white" : "text-gray-400 hover:text-white"
+          )}
+        >
+          Members ({members.length})
+        </button>
+        <button
+          onClick={() => setMembersView("banned")}
+          className={cn(
+            "flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+            membersView === "banned" ? "bg-red-600 text-white" : "text-gray-400 hover:text-white"
+          )}
+        >
+          Banned ({serverBans.length})
+        </button>
+      </div>
+
+      {membersView === "banned" ? (
+        <>
+          <p className="text-xs text-gray-500">{bannedUsers.length} banned user{bannedUsers.length !== 1 ? "s" : ""}</p>
+          {bannedUsers.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">No banned users.</p>
+          ) : (
+            <div className="space-y-1">
+              {bannedUsers.map(({ ban, user: bannedUser }) => (
+                <div
+                  key={ban.id}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-discord-darker border border-gray-800 hover:border-gray-600 transition-colors"
+                >
+                  <Avatar className="w-9 h-9 shrink-0">
+                    <AvatarImage src={bannedUser?.avatar_url || undefined} />
+                    <AvatarFallback className="text-sm">{bannedUser?.display_name?.charAt(0) || "?"}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium truncate">{bannedUser?.display_name || "Unknown"}</span>
+                      <span className="text-xs text-gray-500">@{bannedUser?.username || "unknown"}</span>
+                    </div>
+                    {ban.reason && <p className="text-xs text-gray-400 mt-0.5">Reason: {ban.reason}</p>}
+                    <p className="text-xs text-gray-500">Banned {new Date(ban.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      await serverUnbanUser(serverId, ban.user_id);
+                    }}
+                    className="text-green-400 hover:text-green-300 hover:bg-green-400/10"
+                  >
+                    Unban
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -1579,6 +1786,8 @@ function MembersTab(props: MembersTabProps) {
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }

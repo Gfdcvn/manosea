@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { ServerMember, User, ServerRole } from "@/types";
-import { UserProfileCard } from "@/components/user-profile-card";
+import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
 
 export function MemberSidebar() {
   const rawMembers = useServerStore((s) => s.members);
@@ -147,7 +147,7 @@ function MemberItem({ member, roleIcon, roleColor }: { member: ServerMember; rol
         </div>
         <div className="flex items-center gap-1 min-w-0">
           {roleIcon && <span className="text-sm shrink-0">{roleIcon}</span>}
-          <span className="text-sm truncate" style={roleColor ? { color: roleColor } : { color: "#d1d5db" }}>{user.display_name}</span>
+          <span className="text-sm truncate" style={{ ...(roleColor ? { color: roleColor } : { color: "#d1d5db" }), ...getNameStyle(user) }}>{user.display_name}</span>
           {user.is_bot && (
             <span className="bg-discord-brand text-white text-[9px] px-1 py-0 rounded font-semibold shrink-0">
               BOT

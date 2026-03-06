@@ -10,9 +10,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useMessageStore } from "@/stores/message-store";
 import { useRouter } from "next/navigation";
 import { cn, getStatusColor } from "@/lib/utils";
-import { Check, X, MessageSquare } from "lucide-react";
+import { Check, X, MessageSquare, UserMinus } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { UserProfileCard } from "@/components/user-profile-card";
+import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export function FriendsList() {
@@ -102,6 +102,12 @@ export function FriendsList() {
     fetchFriends();
   };
 
+  const handleRemoveFriend = async (requestId: string) => {
+    const supabase = createClient();
+    await supabase.from("friend_requests").delete().eq("id", requestId);
+    fetchFriends();
+  };
+
   const handleMessage = async (friendId: string) => {
     const dm = await createDmChannel(friendId);
     if (dm) {
@@ -156,6 +162,7 @@ export function FriendsList() {
                     key={request.id}
                     user={friend}
                     onMessage={() => handleMessage(friend.id)}
+                    onRemove={() => handleRemoveFriend(request.id)}
                   />
                 );
               })}
@@ -175,6 +182,7 @@ export function FriendsList() {
                   key={request.id}
                   user={friend}
                   onMessage={() => handleMessage(friend.id)}
+                  onRemove={() => handleRemoveFriend(request.id)}
                 />
               );
             })}
@@ -206,7 +214,7 @@ export function FriendsList() {
                     </Avatar>
                   )}
                   <div>
-                    <p className="text-sm text-white font-medium">{request.sender?.display_name}</p>
+                    <p className="text-sm font-medium" style={request.sender ? getNameStyle(request.sender) : {}}>{request.sender?.display_name}</p>
                     <p className="text-xs text-gray-400">Incoming Friend Request</p>
                   </div>
                 </div>
@@ -246,7 +254,7 @@ export function FriendsList() {
                     </Avatar>
                   )}
                   <div>
-                    <p className="text-sm text-white font-medium">{request.receiver?.display_name}</p>
+                    <p className="text-sm font-medium" style={request.receiver ? getNameStyle(request.receiver) : {}}>{request.receiver?.display_name}</p>
                     <p className="text-xs text-gray-400">Outgoing Friend Request</p>
                   </div>
                 </div>
@@ -288,7 +296,7 @@ export function FriendsList() {
   );
 }
 
-function FriendItem({ user, onMessage }: { user: User; onMessage: () => void }) {
+function FriendItem({ user, onMessage, onRemove }: { user: User; onMessage: () => void; onRemove?: () => void }) {
   return (
     <div className="flex items-center justify-between p-3 rounded-lg hover:bg-discord-hover group">
       <UserProfileCard user={user} side="right" align="start">
@@ -306,7 +314,7 @@ function FriendItem({ user, onMessage }: { user: User; onMessage: () => void }) 
             />
           </div>
           <div>
-            <p className="text-sm text-white font-medium">{user.display_name}</p>
+            <p className="text-sm font-medium" style={getNameStyle(user)}>{user.display_name}</p>
             <p className="text-xs text-gray-400 capitalize">{user.status}</p>
           </div>
         </div>
@@ -315,9 +323,19 @@ function FriendItem({ user, onMessage }: { user: User; onMessage: () => void }) 
         <button
           onClick={onMessage}
           className="p-2 bg-discord-active rounded-full hover:bg-discord-hover text-gray-400 hover:text-white"
+          title="Message"
         >
           <MessageSquare className="w-4 h-4" />
         </button>
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="p-2 bg-discord-active rounded-full hover:bg-discord-hover text-gray-400 hover:text-discord-red"
+            title="Remove Friend"
+          >
+            <UserMinus className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );

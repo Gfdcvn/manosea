@@ -73,13 +73,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const settings = get().settings;
     if (!user) return;
 
-    const { error } = await supabase
+    const { data: upsertedData, error } = await supabase
       .from("user_settings")
-      .upsert({ user_id: user.id, ...data })
-      .eq("user_id", user.id);
+      .upsert({ user_id: user.id, ...data }, { onConflict: "user_id" })
+      .select()
+      .single();
 
-    if (!error && settings) {
-      set({ settings: { ...settings, ...data } as UserSettings });
+    if (!error) {
+      if (upsertedData) {
+        set({ settings: upsertedData as UserSettings });
+      } else if (settings) {
+        set({ settings: { ...settings, ...data } as UserSettings });
+      } else {
+        set({ settings: { user_id: user.id, ...data } as UserSettings });
+      }
     }
   },
 

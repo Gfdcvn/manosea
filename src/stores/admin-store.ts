@@ -101,8 +101,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       popup_shown: false,
     });
 
-    // Update user standing — count active warns/suspends/mutes
-    // Include permanent punishments (null becomes_past_at) AND unexpired ones
+    // Update user standing — count active warns/suspends/mutes (NOT bans)
+    const updateData: Record<string, unknown> = {};
+
+    // Always compute standing-related vars (needed for auto-suspension check)
     const { data: activePunishments } = await supabase
       .from("user_punishments")
       .select("*")
@@ -113,7 +115,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     const standingLevel = Math.min((activePunishments?.length || 0), 4);
 
-    // Check for badge override
     const { data: userBadges } = await supabase
       .from("user_badges")
       .select("*, badge:badges(*)")
@@ -121,9 +122,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     const hasOverride = userBadges?.some((ub: { badge?: { affects_standing?: boolean } }) => ub.badge?.affects_standing);
 
-    const updateData: Record<string, unknown> = {
-      standing_level: hasOverride ? 0 : standingLevel,
-    };
+    // Only update standing_level for non-ban punishments
+    if (data.type !== "ban") {
+      updateData.standing_level = hasOverride ? 0 : standingLevel;
+    }
 
     // Set enforcement flags based on punishment type
     if (data.type === "mute") {

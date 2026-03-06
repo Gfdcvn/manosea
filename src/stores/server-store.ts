@@ -333,14 +333,21 @@ export const useServerStore = create<ServerState>((set, get) => ({
   },
 
   getMemberPermissions: (memberId) => {
-    const roles = get().getMemberRoles(memberId);
+    const state = get();
+    const roles = state.getMemberRoles(memberId);
     let perms = 0;
     for (const role of roles) {
       perms |= role.permissions;
     }
     // Also include @everyone role permissions
-    const everyoneRole = get().roles.find((r) => r.name === "@everyone");
+    const everyoneRole = state.roles.find((r) => r.name === "@everyone");
     if (everyoneRole) perms |= everyoneRole.permissions;
+    // Server owner always has all permissions
+    const member = state.members.find((m) => m.id === memberId);
+    const server = state.currentServer;
+    if (member && server && member.user_id === server.owner_id) {
+      perms = 0xFFFFFFFF; // all bits set
+    }
     return perms;
   },
 
@@ -356,9 +363,17 @@ export const useServerStore = create<ServerState>((set, get) => ({
       reason,
       banned_by: user.id,
     });
+    // Remove member role assignments
+    const member = get().members.find((m) => m.server_id === serverId && m.user_id === userId);
+    if (member) {
+      await supabase.from("server_member_roles").delete().eq("member_id", member.id).eq("server_id", serverId);
+    }
+    // Delete invites created by this user for this server
+    await supabase.from("server_invites").delete().eq("server_id", serverId).eq("created_by", userId);
     // Remove from server members
     await supabase.from("server_members").delete().eq("server_id", serverId).eq("user_id", userId);
     await get().fetchServerDetails(serverId);
+    await get().fetchServerModeration(serverId);
   },
 
   serverUnbanUser: async (serverId, userId) => {
