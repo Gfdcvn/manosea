@@ -36,6 +36,7 @@ export interface User {
   name_gradient_start: string | null;
   name_gradient_end: string | null;
   name_font: NameFont;
+  selected_server_tag: string | null;
   created_at: string;
 }
 
@@ -79,6 +80,7 @@ export interface Server {
   banner_gradient_end: string | null;
   banner_gradient_angle: number | null;
   tag: string | null;
+  tags: string[];
   owner_id: string;
   is_suspended: boolean;
   is_discoverable: boolean;

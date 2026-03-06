@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type Theme = "dark" | "light" | "sepia" | "gray" | "blue" | "purple";
+export type Theme = "dark" | "light" | "sepia" | "gray" | "blue" | "purple" | "midnight" | "forest" | "rose" | "sunset" | "ocean" | "mint" | "coffee" | "slate" | "cherry" | "nord";
 
 interface ThemeState {
   theme: Theme;
@@ -35,11 +35,11 @@ function applyTheme(theme: Theme) {
   const root = document.documentElement;
 
   // Remove all theme classes
-  root.classList.remove("theme-dark", "theme-light", "theme-sepia", "theme-gray", "theme-blue", "theme-purple");
+  root.classList.remove("theme-dark", "theme-light", "theme-sepia", "theme-gray", "theme-blue", "theme-purple", "theme-midnight", "theme-forest", "theme-rose", "theme-sunset", "theme-ocean", "theme-mint", "theme-coffee", "theme-slate", "theme-cherry", "theme-nord");
   root.classList.add(`theme-${theme}`);
 
   // Also toggle the dark class for Tailwind darkMode
-  if (theme === "light" || theme === "sepia") {
+  if (theme === "light" || theme === "sepia" || theme === "mint") {
     root.classList.remove("dark");
   } else {
     root.classList.add("dark");

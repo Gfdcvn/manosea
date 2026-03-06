@@ -10,6 +10,7 @@ import { Pencil, Trash2, Copy, Pin, PinOff, Flag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
+import { ServerTagBadge } from "@/components/server-tag-badge";
 import { FormattedMessage } from "@/components/chat/formatted-message";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -44,15 +45,17 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
   const members = useServerStore((s) => s.members);
   const memberRoles = useServerStore((s) => s.memberRoles);
   const roles = useServerStore((s) => s.roles);
+  const currentServer = useServerStore((s) => s.currentServer);
 
-  // Find the author's highest role with an icon
-  const authorMember = members.find((m) => m.user_id === message.author_id);
+  // Only show role icons/colors when inside a server context (not DMs)
+  const inServerContext = !isDm && !!currentServer;
+  const authorMember = inServerContext ? members.find((m) => m.user_id === message.author_id) : undefined;
   const authorRoleIds = authorMember
     ? memberRoles.filter((mr) => mr.member_id === authorMember.id).map((mr) => mr.role_id)
     : [];
-  const authorRoles = roles
-    .filter((r) => authorRoleIds.includes(r.id))
-    .sort((a, b) => b.position - a.position);
+  const authorRoles = inServerContext
+    ? roles.filter((r) => authorRoleIds.includes(r.id)).sort((a, b) => b.position - a.position)
+    : [];
   const topRole = authorRoles[0];
   const roleColor = topRole?.color;
   const roleIcon = authorRoles.find((r) => r.icon)?.icon;
@@ -117,6 +120,9 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
                 <span className="bg-discord-brand text-white text-[10px] px-1 py-0.5 rounded font-semibold">
                   BOT
                 </span>
+              )}
+              {message.author?.selected_server_tag && (
+                <ServerTagBadge tag={message.author.selected_server_tag} />
               )}
               <span className="text-xs text-discord-muted">
                 {formatRelativeTime(message.created_at)}

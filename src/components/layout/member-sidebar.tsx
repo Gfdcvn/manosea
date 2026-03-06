@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { ServerMember, User, ServerRole } from "@/types";
 import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
+import { ServerTagBadge } from "@/components/server-tag-badge";
 
 export function MemberSidebar() {
   const rawMembers = useServerStore((s) => s.members);
@@ -152,6 +153,9 @@ function MemberItem({ member, roleIcon, roleColor }: { member: ServerMember; rol
             <span className="bg-discord-brand text-white text-[9px] px-1 py-0 rounded font-semibold shrink-0">
               BOT
             </span>
+          )}
+          {user.selected_server_tag && (
+            <ServerTagBadge tag={user.selected_server_tag} />
           )}
         </div>
       </div>

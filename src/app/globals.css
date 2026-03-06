@@ -147,6 +147,246 @@
   --scrollbar-thumb-hover: #1f1630;
 }
 
+/* ======================== */
+/* MIDNIGHT THEME           */
+/* ======================== */
+.theme-midnight {
+  --background: #0d1117;
+  --foreground: #c9d1d9;
+  --rc-dark: #010409;
+  --rc-darker: #000000;
+  --rc-channel: #0d1117;
+  --rc-hover: #161b22;
+  --rc-active: #21262d;
+  --rc-sidebar: #0d1117;
+  --rc-chat: #0d1117;
+  --rc-input: #161b22;
+  --rc-header: #0d1117;
+  --rc-border: #21262d;
+  --rc-muted: #8b949e;
+  --rc-text: #c9d1d9;
+  --rc-text-secondary: #8b949e;
+  --rc-text-tertiary: #6e7681;
+  --scrollbar-thumb: #21262d;
+  --scrollbar-thumb-hover: #30363d;
+}
+
+/* ======================== */
+/* FOREST THEME             */
+/* ======================== */
+.theme-forest {
+  --background: #1a2418;
+  --foreground: #c8dcc4;
+  --rc-dark: #111a0f;
+  --rc-darker: #0a120a;
+  --rc-channel: #162013;
+  --rc-hover: #243022;
+  --rc-active: #2e3d2b;
+  --rc-sidebar: #162013;
+  --rc-chat: #1a2418;
+  --rc-input: #243022;
+  --rc-header: #162013;
+  --rc-border: #111a0f;
+  --rc-muted: #6b8a66;
+  --rc-text: #c8dcc4;
+  --rc-text-secondary: #97b492;
+  --rc-text-tertiary: #6b8a66;
+  --scrollbar-thumb: #111a0f;
+  --scrollbar-thumb-hover: #162013;
+}
+
+/* ======================== */
+/* ROSE THEME               */
+/* ======================== */
+.theme-rose {
+  --background: #2a1a22;
+  --foreground: #e8d0d8;
+  --rc-dark: #1f1018;
+  --rc-darker: #170a10;
+  --rc-channel: #241520;
+  --rc-hover: #3a2230;
+  --rc-active: #482a3c;
+  --rc-sidebar: #241520;
+  --rc-chat: #2a1a22;
+  --rc-input: #3a2230;
+  --rc-header: #241520;
+  --rc-border: #1f1018;
+  --rc-muted: #b06b88;
+  --rc-text: #e8d0d8;
+  --rc-text-secondary: #c898aa;
+  --rc-text-tertiary: #b06b88;
+  --scrollbar-thumb: #1f1018;
+  --scrollbar-thumb-hover: #241520;
+}
+
+/* ======================== */
+/* SUNSET THEME             */
+/* ======================== */
+.theme-sunset {
+  --background: #2a1c14;
+  --foreground: #e8d8cc;
+  --rc-dark: #1e130c;
+  --rc-darker: #140c06;
+  --rc-channel: #24180f;
+  --rc-hover: #3a2818;
+  --rc-active: #4a3420;
+  --rc-sidebar: #24180f;
+  --rc-chat: #2a1c14;
+  --rc-input: #3a2818;
+  --rc-header: #24180f;
+  --rc-border: #1e130c;
+  --rc-muted: #b07850;
+  --rc-text: #e8d8cc;
+  --rc-text-secondary: #c8a888;
+  --rc-text-tertiary: #b07850;
+  --scrollbar-thumb: #1e130c;
+  --scrollbar-thumb-hover: #24180f;
+}
+
+/* ======================== */
+/* OCEAN THEME              */
+/* ======================== */
+.theme-ocean {
+  --background: #0e1e2a;
+  --foreground: #c0dce8;
+  --rc-dark: #081620;
+  --rc-darker: #040e16;
+  --rc-channel: #0b1a24;
+  --rc-hover: #152a38;
+  --rc-active: #1c3648;
+  --rc-sidebar: #0b1a24;
+  --rc-chat: #0e1e2a;
+  --rc-input: #152a38;
+  --rc-header: #0b1a24;
+  --rc-border: #081620;
+  --rc-muted: #4e8ca8;
+  --rc-text: #c0dce8;
+  --rc-text-secondary: #88b8cc;
+  --rc-text-tertiary: #4e8ca8;
+  --scrollbar-thumb: #081620;
+  --scrollbar-thumb-hover: #0b1a24;
+}
+
+/* ======================== */
+/* MINT THEME (light)       */
+/* ======================== */
+.theme-mint {
+  --background: #f0faf5;
+  --foreground: #1a3a2a;
+  --rc-dark: #d5ede2;
+  --rc-darker: #c2e4d4;
+  --rc-channel: #e2f4ec;
+  --rc-hover: #c8e8d8;
+  --rc-active: #b2dcc8;
+  --rc-sidebar: #e2f4ec;
+  --rc-chat: #f0faf5;
+  --rc-input: #d5ede2;
+  --rc-header: #e2f4ec;
+  --rc-border: #b2dcc8;
+  --rc-muted: #4a8068;
+  --rc-text: #1a3a2a;
+  --rc-text-secondary: #2e5e48;
+  --rc-text-tertiary: #4a8068;
+  --scrollbar-thumb: #b2dcc8;
+  --scrollbar-thumb-hover: #98d0b6;
+}
+
+/* ======================== */
+/* COFFEE THEME             */
+/* ======================== */
+.theme-coffee {
+  --background: #2c2218;
+  --foreground: #e0d4c6;
+  --rc-dark: #201810;
+  --rc-darker: #18100a;
+  --rc-channel: #261e14;
+  --rc-hover: #3a2e20;
+  --rc-active: #4a3c2c;
+  --rc-sidebar: #261e14;
+  --rc-chat: #2c2218;
+  --rc-input: #3a2e20;
+  --rc-header: #261e14;
+  --rc-border: #201810;
+  --rc-muted: #a08a70;
+  --rc-text: #e0d4c6;
+  --rc-text-secondary: #c0ac94;
+  --rc-text-tertiary: #a08a70;
+  --scrollbar-thumb: #201810;
+  --scrollbar-thumb-hover: #261e14;
+}
+
+/* ======================== */
+/* SLATE THEME              */
+/* ======================== */
+.theme-slate {
+  --background: #1e2a32;
+  --foreground: #ccd8e0;
+  --rc-dark: #141e26;
+  --rc-darker: #0e161c;
+  --rc-channel: #1a252c;
+  --rc-hover: #28363f;
+  --rc-active: #32434e;
+  --rc-sidebar: #1a252c;
+  --rc-chat: #1e2a32;
+  --rc-input: #28363f;
+  --rc-header: #1a252c;
+  --rc-border: #141e26;
+  --rc-muted: #728898;
+  --rc-text: #ccd8e0;
+  --rc-text-secondary: #9cb0bc;
+  --rc-text-tertiary: #728898;
+  --scrollbar-thumb: #141e26;
+  --scrollbar-thumb-hover: #1a252c;
+}
+
+/* ======================== */
+/* CHERRY THEME             */
+/* ======================== */
+.theme-cherry {
+  --background: #2c1420;
+  --foreground: #f0d0dc;
+  --rc-dark: #200c16;
+  --rc-darker: #18080e;
+  --rc-channel: #26101a;
+  --rc-hover: #3e1c2c;
+  --rc-active: #502438;
+  --rc-sidebar: #26101a;
+  --rc-chat: #2c1420;
+  --rc-input: #3e1c2c;
+  --rc-header: #26101a;
+  --rc-border: #200c16;
+  --rc-muted: #c06088;
+  --rc-text: #f0d0dc;
+  --rc-text-secondary: #d898b0;
+  --rc-text-tertiary: #c06088;
+  --scrollbar-thumb: #200c16;
+  --scrollbar-thumb-hover: #26101a;
+}
+
+/* ======================== */
+/* NORD THEME               */
+/* ======================== */
+.theme-nord {
+  --background: #2e3440;
+  --foreground: #d8dee9;
+  --rc-dark: #242933;
+  --rc-darker: #1c2028;
+  --rc-channel: #2a303c;
+  --rc-hover: #3b4252;
+  --rc-active: #434c5e;
+  --rc-sidebar: #2a303c;
+  --rc-chat: #2e3440;
+  --rc-input: #3b4252;
+  --rc-header: #2a303c;
+  --rc-border: #242933;
+  --rc-muted: #7b88a1;
+  --rc-text: #d8dee9;
+  --rc-text-secondary: #a4b1c4;
+  --rc-text-tertiary: #7b88a1;
+  --scrollbar-thumb: #242933;
+  --scrollbar-thumb-hover: #2a303c;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -195,7 +435,8 @@ body {
 
 /* Theme-aware overrides for components that hardcode text-white */
 .theme-light .text-white,
-.theme-sepia .text-white {
+.theme-sepia .text-white,
+.theme-mint .text-white {
   color: var(--rc-text);
 }
 

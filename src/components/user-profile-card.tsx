@@ -7,6 +7,7 @@ import { cn, getStatusColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useServerStore } from "@/stores/server-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { ServerTagBadge } from "@/components/server-tag-badge";
 import {
   Popover,
   PopoverContent,
@@ -242,6 +243,9 @@ export function UserProfileCard({
               {user.is_bot && (
                 <span className="bg-discord-brand text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">BOT</span>
               )}
+              {user.selected_server_tag && (
+                <ServerTagBadge tag={user.selected_server_tag} />
+              )}
               {activePunishments.find((p) => p.type === "mute") && (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
@@ -292,7 +296,7 @@ export function UserProfileCard({
               )}
             </div>
             <p className="text-sm text-gray-400">
-              {user.username}#{user.id.slice(-4)}
+              @{user.username}
             </p>
           </div>
 

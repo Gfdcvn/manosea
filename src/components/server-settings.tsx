@@ -38,7 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
-import { ServerInvite, ServerRole, PERMISSION_LABELS } from "@/types";
+import { Server, ServerInvite, ServerRole, PERMISSION_LABELS } from "@/types";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -78,6 +78,8 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
   const [description, setDescription] = useState(currentServer?.description || "");
   const [bannerColor, setBannerColor] = useState(currentServer?.banner_color || "#5865F2");
   const [tag, setTag] = useState(currentServer?.tag || "");
+  const [tags, setTags] = useState<string[]>(currentServer?.tags || []);
+  const [newTag, setNewTag] = useState("");
   const [isDiscoverable, setIsDiscoverable] = useState(currentServer?.is_discoverable || false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState(currentServer?.banner_color || "#5865F2");
@@ -101,6 +103,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
       setDescription(currentServer.description || "");
       setBannerColor(currentServer.banner_color || "#5865F2");
       setTag(currentServer.tag || "");
+      setTags(currentServer.tags || []);
       setIsDiscoverable(currentServer.is_discoverable || false);
       setCustomColor(currentServer.banner_color || "#5865F2");
       setBannerMode(currentServer.banner_gradient_start && currentServer.banner_gradient_end ? "gradient" : "solid");
@@ -142,14 +145,40 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
     await fetchServers();
   }, [description, currentServer, serverId, updateServer, fetchServers]);
 
-  // Auto-save tag on blur
-  const handleTagBlur = useCallback(async () => {
-    const trimmed = tag.trim().toUpperCase();
-    setTag(trimmed);
-    if (trimmed === (currentServer?.tag || "")) return;
-    await updateServer(serverId, { tag: trimmed || null } as Record<string, unknown> & { tag: string | null });
+  // Add a new tag
+  const handleAddTag = useCallback(async () => {
+    const trimmed = newTag.trim().toUpperCase();
+    if (!trimmed || tags.includes(trimmed)) { setNewTag(""); return; }
+    const newTags = [...tags, trimmed];
+    setTags(newTags);
+    setNewTag("");
+    // If no primary tag set, make this the primary
+    if (!tag) {
+      setTag(trimmed);
+      await updateServer(serverId, { tag: trimmed, tags: newTags } as unknown as Partial<Server>);
+    } else {
+      await updateServer(serverId, { tags: newTags } as unknown as Partial<Server>);
+    }
     await fetchServers();
-  }, [tag, currentServer, serverId, updateServer, fetchServers]);
+  }, [newTag, tags, tag, serverId, updateServer, fetchServers]);
+
+  // Remove a tag
+  const handleRemoveTag = useCallback(async (tagToRemove: string) => {
+    const newTags = tags.filter((t) => t !== tagToRemove);
+    setTags(newTags);
+    const isPrimary = tag === tagToRemove;
+    const newPrimary = isPrimary ? (newTags[0] || null) : tag;
+    if (isPrimary) setTag(newPrimary || "");
+    await updateServer(serverId, { tags: newTags, ...(isPrimary ? { tag: newPrimary } : {}) } as unknown as Partial<Server>);
+    await fetchServers();
+  }, [tags, tag, serverId, updateServer, fetchServers]);
+
+  // Set a tag as primary
+  const handleSetPrimaryTag = useCallback(async (t: string) => {
+    setTag(t);
+    await updateServer(serverId, { tag: t } as unknown as Partial<Server>);
+    await fetchServers();
+  }, [serverId, updateServer, fetchServers]);
 
   // Save banner color
   const handleColorSelect = async (color: string) => {
@@ -302,7 +331,19 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                       </div>
                       <div>
                         <h3 className="text-white font-semibold text-lg">{name || "Server"}</h3>
-                        {tag && (
+                        {tags.length > 0 && (
+                          <div className="flex gap-1 flex-wrap mt-1">
+                            {tags.map((t) => (
+                              <span key={t} className={cn(
+                                "text-xs px-2 py-0.5 rounded-full font-medium",
+                                t === tag ? "bg-discord-brand/20 text-discord-brand" : "bg-gray-700/50 text-gray-400"
+                              )}>
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {tags.length === 0 && tag && (
                           <span className="text-xs bg-discord-brand/20 text-discord-brand px-2 py-0.5 rounded-full font-medium">
                             {tag}
                           </span>
@@ -345,21 +386,66 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                   <p className="text-xs text-gray-500 mt-1 text-right">{description.length}/300</p>
                 </div>
 
-                {/* Server Tag */}
+                {/* Server Tags */}
                 <div>
                   <Label className="text-xs font-bold text-gray-300 uppercase mb-2 flex items-center gap-1.5">
                     <Tag className="w-3.5 h-3.5" />
-                    Server Tag
+                    Server Tags
                   </Label>
-                  <Input
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value.toUpperCase().slice(0, 6))}
-                    onBlur={handleTagBlur}
-                    placeholder="e.g. GAMING"
-                    maxLength={6}
-                  />
+                  <p className="text-xs text-gray-500 mb-3">
+                    Add tags for your server. The primary tag is shown next to the server name. Users can select one of your tags to display next to their name.
+                  </p>
+
+                  {/* Current tags */}
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {tags.map((t) => (
+                        <div
+                          key={t}
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border transition-colors",
+                            t === tag
+                              ? "bg-discord-brand/20 text-discord-brand border-discord-brand/40"
+                              : "bg-discord-dark text-gray-300 border-gray-700"
+                          )}
+                        >
+                          <button
+                            onClick={() => handleSetPrimaryTag(t)}
+                            className="hover:underline"
+                            title={t === tag ? "Primary tag" : "Set as primary"}
+                          >
+                            {t}
+                          </button>
+                          {t === tag && (
+                            <span className="text-[9px] bg-discord-brand/30 text-discord-brand px-1 rounded">PRIMARY</span>
+                          )}
+                          <button
+                            onClick={() => handleRemoveTag(t)}
+                            className="ml-0.5 text-gray-500 hover:text-red-400"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add new tag */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value.toUpperCase().slice(0, 12))}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }}
+                      placeholder="e.g. GAMING"
+                      maxLength={12}
+                      className="flex-1"
+                    />
+                    <Button onClick={handleAddTag} disabled={!newTag.trim() || tags.length >= 5} size="sm">
+                      Add
+                    </Button>
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    A short tag for your server (max 6 characters). Displayed next to the server name.
+                    {tags.length}/5 tags. Click a tag to make it primary.
                   </p>
                 </div>
 

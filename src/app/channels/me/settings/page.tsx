@@ -78,6 +78,66 @@ const THEME_OPTIONS: { id: Theme; label: string; description: string; preview: {
     description: "Rich, royal purple vibes",
     preview: { bg: "#180f26", sidebar: "#1f1630", chat: "#231a33", text: "#dcd0ea" },
   },
+  {
+    id: "midnight",
+    label: "Midnight",
+    description: "Deep black, GitHub-inspired",
+    preview: { bg: "#010409", sidebar: "#0d1117", chat: "#0d1117", text: "#c9d1d9" },
+  },
+  {
+    id: "forest",
+    label: "Forest",
+    description: "Earthy greens and deep woods",
+    preview: { bg: "#111a0f", sidebar: "#162013", chat: "#1a2418", text: "#c8dcc4" },
+  },
+  {
+    id: "rose",
+    label: "Rosé",
+    description: "Soft pink and warm hues",
+    preview: { bg: "#1f1018", sidebar: "#241520", chat: "#2a1a22", text: "#e8d0d8" },
+  },
+  {
+    id: "sunset",
+    label: "Sunset",
+    description: "Warm amber and burnt orange",
+    preview: { bg: "#1e130c", sidebar: "#24180f", chat: "#2a1c14", text: "#e8d8cc" },
+  },
+  {
+    id: "ocean",
+    label: "Ocean",
+    description: "Deep sea blues and teals",
+    preview: { bg: "#081620", sidebar: "#0b1a24", chat: "#0e1e2a", text: "#c0dce8" },
+  },
+  {
+    id: "mint",
+    label: "Mint",
+    description: "Light, fresh minty green",
+    preview: { bg: "#c2e4d4", sidebar: "#e2f4ec", chat: "#f0faf5", text: "#1a3a2a" },
+  },
+  {
+    id: "coffee",
+    label: "Coffee",
+    description: "Rich brown coffeehouse vibes",
+    preview: { bg: "#201810", sidebar: "#261e14", chat: "#2c2218", text: "#e0d4c6" },
+  },
+  {
+    id: "slate",
+    label: "Slate",
+    description: "Blue-gray professional tone",
+    preview: { bg: "#141e26", sidebar: "#1a252c", chat: "#1e2a32", text: "#ccd8e0" },
+  },
+  {
+    id: "cherry",
+    label: "Cherry",
+    description: "Bold, vibrant dark red",
+    preview: { bg: "#200c16", sidebar: "#26101a", chat: "#2c1420", text: "#f0d0dc" },
+  },
+  {
+    id: "nord",
+    label: "Nord",
+    description: "Arctic, cool color palette",
+    preview: { bg: "#242933", sidebar: "#2a303c", chat: "#2e3440", text: "#d8dee9" },
+  },
 ];
 
 export default function SettingsPage() {
@@ -114,6 +174,9 @@ export default function SettingsPage() {
   const [nameFont, setNameFont] = useState<NameFont>("default");
   const [nameColorMode, setNameColorMode] = useState<"none" | "solid" | "gradient">("none");
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [selectedServerTag, setSelectedServerTag] = useState<string | null>(null);
+  const [tagSearch, setTagSearch] = useState("");
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -125,6 +188,7 @@ export default function SettingsPage() {
       }
       setAvatarPreview(user.avatar_url || null);
       setBannerPreview(user.banner_url || null);
+      setSelectedServerTag(user.selected_server_tag || null);
       setNameColor(user.name_color || null);
       setNameGradientStart(user.name_gradient_start || null);
       setNameGradientEnd(user.name_gradient_end || null);
@@ -583,6 +647,46 @@ export default function SettingsPage() {
 
                   {nameColorMode === "gradient" && (
                     <div className="space-y-3">
+                      {/* Gradient Presets */}
+                      <div>
+                        <Label className="text-[10px] text-gray-500 mb-1">Presets</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            ["#5865f2", "#eb459e"],
+                            ["#ff6b6b", "#feca57"],
+                            ["#00d2d3", "#54a0ff"],
+                            ["#5f27cd", "#48dbfb"],
+                            ["#ff9ff3", "#feca57"],
+                            ["#1dd1a1", "#10ac84"],
+                            ["#ff6348", "#ff4757"],
+                            ["#7158e2", "#3ae374"],
+                            ["#3d3d3d", "#5865f2"],
+                            ["#e84393", "#6c5ce7"],
+                            ["#fd79a8", "#fdcb6e"],
+                            ["#00b894", "#00cec9"],
+                            ["#f39c12", "#e74c3c"],
+                            ["#2980b9", "#6dd5fa"],
+                            ["#c471ed", "#f64f59"],
+                            ["#11998e", "#38ef7d"],
+                            ["#ee0979", "#ff6a00"],
+                            ["#fc4a1a", "#f7b733"],
+                            ["#4568dc", "#b06ab3"],
+                            ["#e44d26", "#f16529"],
+                          ].map(([start, end], i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setNameGradientStart(start);
+                                setNameGradientEnd(end);
+                                updateProfile({ name_gradient_start: start, name_gradient_end: end, name_color: null });
+                                flashSaved();
+                              }}
+                              className="w-10 h-6 rounded-full border-2 border-gray-600 hover:border-white transition-colors"
+                              style={{ background: `linear-gradient(90deg, ${start}, ${end})` }}
+                            />
+                          ))}
+                        </div>
+                      </div>
                       <div className="flex items-center gap-3">
                         <div>
                           <Label className="text-[10px] text-gray-500">Start</Label>
@@ -614,6 +718,84 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Server Tag Selection */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Server Tag</Label>
+                  <p className="text-xs text-gray-400">Choose a server tag to display next to your name everywhere.</p>
+                  <div className="relative">
+                    <div
+                      className="flex items-center justify-between p-2 rounded-md bg-discord-dark border border-gray-700 cursor-pointer hover:border-gray-500 transition-colors"
+                      onClick={() => setTagDropdownOpen(!tagDropdownOpen)}
+                    >
+                      {selectedServerTag ? (
+                        <span className="text-xs font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded-full">
+                          {selectedServerTag}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-500">No tag selected</span>
+                      )}
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${tagDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                    {tagDropdownOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-discord-darker border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                        <div className="p-2 border-b border-gray-700">
+                          <Input
+                            placeholder="Search tags..."
+                            value={tagSearch}
+                            onChange={(e) => setTagSearch(e.target.value)}
+                            className="h-8 text-sm bg-discord-dark border-gray-600"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto p-1">
+                          <button
+                            onClick={async () => {
+                              setSelectedServerTag(null);
+                              setTagDropdownOpen(false);
+                              setTagSearch("");
+                              await updateProfile({ selected_server_tag: null });
+                              flashSaved();
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                              !selectedServerTag ? 'bg-discord-brand/20 text-white' : 'text-gray-300 hover:bg-discord-dark'
+                            }`}
+                          >
+                            None
+                          </button>
+                          {(() => {
+                            const allTags = Array.from(new Set(servers.flatMap(s => s.tags || [])));
+                            const filtered = allTags.filter(t => t.toLowerCase().includes(tagSearch.toLowerCase()));
+                            if (filtered.length === 0) return <p className="text-xs text-gray-500 px-3 py-2">No tags found</p>;
+                            return filtered.map(tag => {
+                              const tagServer = servers.find(s => (s.tags || []).includes(tag));
+                              return (
+                                <button
+                                  key={tag}
+                                  onClick={async () => {
+                                    setSelectedServerTag(tag);
+                                    setTagDropdownOpen(false);
+                                    setTagSearch("");
+                                    await updateProfile({ selected_server_tag: tag });
+                                    flashSaved();
+                                  }}
+                                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                                    selectedServerTag === tag ? 'bg-discord-brand/20 text-white' : 'text-gray-300 hover:bg-discord-dark'
+                                  }`}
+                                >
+                                  <span className="text-xs font-bold bg-discord-brand/10 text-discord-brand px-2 py-0.5 rounded-full">{tag}</span>
+                                  {tagServer && <span className="text-xs text-gray-500 truncate">from {tagServer.name}</span>}
+                                </button>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <Separator className="my-4" />
@@ -950,7 +1132,7 @@ export default function SettingsPage() {
                 Choose a theme for your Ricord experience
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {THEME_OPTIONS.map((t) => (
                   <button
                     key={t.id}
