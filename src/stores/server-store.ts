@@ -260,6 +260,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
     if (data.banner_color !== undefined) updateData.banner_color = data.banner_color;
     if (data.tag !== undefined) updateData.tag = data.tag;
     if ((data as Record<string, unknown>).tags !== undefined) updateData.tags = (data as Record<string, unknown>).tags;
+    if ((data as Record<string, unknown>).tag_icons !== undefined) updateData.tag_icons = (data as Record<string, unknown>).tag_icons;
     if (data.icon_url !== undefined) updateData.icon_url = data.icon_url;
     if (data.is_discoverable !== undefined) updateData.is_discoverable = data.is_discoverable;
     if (data.banner_gradient_start !== undefined) updateData.banner_gradient_start = data.banner_gradient_start;

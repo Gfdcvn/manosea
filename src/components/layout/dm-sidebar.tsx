@@ -11,6 +11,7 @@ import { cn, getStatusColor } from "@/lib/utils";
 import { Users, Plus, Search, X } from "lucide-react";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { User, FriendRequest } from "@/types";
+import { UserNameplate } from "@/components/user-nameplate";
 import { createClient } from "@/lib/supabase/client";
 import {
   Dialog,
@@ -186,12 +187,23 @@ export function DmSidebar() {
                 >
                   <div className="relative">
                     <UserProfileCard user={otherUser as User} side="right" align="start">
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={otherUser.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {otherUser.display_name?.charAt(0) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        {(otherUser as User).avatar_ring && (
+                          <div
+                            className={cn("absolute inset-[-3px] rounded-full", (otherUser as User).avatar_ring!.style === "animated" && "avatar-ring-animated")}
+                            style={{
+                              background: (otherUser as User).avatar_ring!.style === "solid" ? (otherUser as User).avatar_ring!.color1 : `linear-gradient(135deg, ${(otherUser as User).avatar_ring!.color1}, ${(otherUser as User).avatar_ring!.color2})`,
+                              ...((otherUser as User).avatar_ring!.style === "animated" ? { "--ring-c1": (otherUser as User).avatar_ring!.color1, "--ring-c2": (otherUser as User).avatar_ring!.color2 } as React.CSSProperties : {}),
+                            }}
+                          />
+                        )}
+                        <Avatar className="w-8 h-8 relative">
+                          <AvatarImage src={otherUser.avatar_url || undefined} />
+                          <AvatarFallback className="text-xs">
+                            {otherUser.display_name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
                     </UserProfileCard>
                     <div
                       className={cn(
@@ -200,7 +212,12 @@ export function DmSidebar() {
                       )}
                     />
                   </div>
-                  <span className={cn("truncate", isUnread && "font-bold text-white")}>{otherUser.display_name}</span>
+                  {(() => {
+                    const ou = otherUser as User;
+                    const nameEffectClass = ou.name_effect && ou.name_effect !== "none" ? `name-effect-${ou.name_effect}` : "";
+                    const nameEl = <span className={cn("truncate", isUnread && "font-bold text-white", nameEffectClass)}>{otherUser.display_name}</span>;
+                    return ou.nameplate ? <UserNameplate nameplate={ou.nameplate}>{nameEl}</UserNameplate> : nameEl;
+                  })()}
                 </button>
                 <button
                   onClick={async (e) => {

@@ -7,6 +7,7 @@ import { cn, getStatusColor } from "@/lib/utils";
 import { ServerMember, User, ServerRole } from "@/types";
 import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
 import { ServerTagBadge } from "@/components/server-tag-badge";
+import { UserNameplate } from "@/components/user-nameplate";
 
 export function MemberSidebar() {
   const rawMembers = useServerStore((s) => s.members);
@@ -129,11 +130,27 @@ function MemberItem({ member, roleIcon, roleColor }: { member: ServerMember; rol
   const user = member.user as User | undefined;
   if (!user) return null;
 
+  const nameEffectClass = user.name_effect && user.name_effect !== "none" ? `name-effect-${user.name_effect}` : "";
+  const ring = user.avatar_ring;
+
+  const nameEl = (
+    <span className={cn("text-sm truncate", nameEffectClass)} style={{ ...(roleColor ? { color: roleColor } : { color: "#d1d5db" }), ...getNameStyle(user) }}>{user.display_name}</span>
+  );
+
   return (
     <UserProfileCard user={user} side="left" align="start">
       <div className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-discord-hover transition-colors">
         <div className="relative shrink-0">
-          <Avatar className="w-8 h-8">
+          {ring && (
+            <div
+              className={cn("absolute inset-[-3px] rounded-full", ring.style === "animated" && "avatar-ring-animated")}
+              style={{
+                background: ring.style === "solid" ? ring.color1 : `linear-gradient(135deg, ${ring.color1}, ${ring.color2})`,
+                ...(ring.style === "animated" ? { "--ring-c1": ring.color1, "--ring-c2": ring.color2 } as React.CSSProperties : {}),
+              }}
+            />
+          )}
+          <Avatar className="w-8 h-8 relative">
             <AvatarImage src={user.avatar_url || undefined} />
             <AvatarFallback className="text-xs">
               {user.display_name?.charAt(0) || "?"}
@@ -148,7 +165,7 @@ function MemberItem({ member, roleIcon, roleColor }: { member: ServerMember; rol
         </div>
         <div className="flex items-center gap-1 min-w-0">
           {roleIcon && <span className="text-sm shrink-0">{roleIcon}</span>}
-          <span className="text-sm truncate" style={{ ...(roleColor ? { color: roleColor } : { color: "#d1d5db" }), ...getNameStyle(user) }}>{user.display_name}</span>
+          {user.nameplate ? <UserNameplate nameplate={user.nameplate}>{nameEl}</UserNameplate> : nameEl}
           {user.is_bot && (
             <span className="bg-discord-brand text-white text-[9px] px-1 py-0 rounded font-semibold shrink-0">
               BOT

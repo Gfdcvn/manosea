@@ -13,6 +13,7 @@ import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
 import { ServerTagBadge } from "@/components/server-tag-badge";
 import { FormattedMessage } from "@/components/chat/formatted-message";
 import { useAuthStore } from "@/stores/auth-store";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,9 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
   const roleColor = topRole?.color;
   const roleIcon = authorRoles.find((r) => r.icon)?.icon;
 
+  const authorRing = message.author?.avatar_ring;
+  const nameEffectClass = message.author?.name_effect && message.author.name_effect !== "none" ? `name-effect-${message.author.name_effect}` : "";
+
   const handleSaveEdit = async () => {
     if (editContent.trim() && editContent !== message.content) {
       await editMessage(message.id, editContent.trim());
@@ -92,12 +96,23 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
         <div className="flex items-start gap-4 pt-4">
           {message.author ? (
             <UserProfileCard user={message.author} side="right" align="start">
-              <Avatar className="w-10 h-10 mt-0.5 shrink-0">
-                <AvatarImage src={message.author?.avatar_url || undefined} />
-                <AvatarFallback className="text-sm">
-                  {message.author?.display_name?.charAt(0) || "?"}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative mt-0.5 shrink-0">
+                {authorRing && (
+                  <div
+                    className={cn("absolute inset-[-3px] rounded-full", authorRing.style === "animated" && "avatar-ring-animated")}
+                    style={{
+                      background: authorRing.style === "solid" ? authorRing.color1 : `linear-gradient(135deg, ${authorRing.color1}, ${authorRing.color2})`,
+                      ...(authorRing.style === "animated" ? { "--ring-c1": authorRing.color1, "--ring-c2": authorRing.color2 } as React.CSSProperties : {}),
+                    }}
+                  />
+                )}
+                <Avatar className="w-10 h-10 relative">
+                  <AvatarImage src={message.author?.avatar_url || undefined} />
+                  <AvatarFallback className="text-sm">
+                    {message.author?.display_name?.charAt(0) || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
             </UserProfileCard>
           ) : (
             <Avatar className="w-10 h-10 mt-0.5 shrink-0">
@@ -108,7 +123,7 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
             <div className="flex items-baseline gap-2">
               {message.author ? (
                 <UserProfileCard user={message.author} side="right" align="start">
-                  <span className="font-medium hover:underline cursor-pointer flex items-center gap-1" style={{ ...(roleColor ? { color: roleColor } : { color: "white" }), ...(message.author ? getNameStyle(message.author) : {}) }}>
+                  <span className={cn("font-medium hover:underline cursor-pointer flex items-center gap-1", nameEffectClass)} style={{ ...(roleColor ? { color: roleColor } : { color: "white" }), ...(message.author ? getNameStyle(message.author) : {}) }}>
                     {roleIcon && <span className="text-sm">{roleIcon}</span>}
                     {message.author?.display_name || "Unknown"}
                   </span>

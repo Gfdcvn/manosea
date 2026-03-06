@@ -433,6 +433,88 @@ body {
   }
 }
 
+/* Nameplate animations */
+@keyframes np-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes np-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+@keyframes np-colorShift {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+@keyframes np-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+.np-anim-shimmer {
+  background-size: 200% 100% !important;
+  animation: np-shimmer 3s linear infinite;
+}
+.np-anim-pulse {
+  animation: np-pulse 2s ease-in-out infinite;
+}
+.np-anim-colorShift {
+  animation: np-colorShift 6s linear infinite;
+}
+.np-anim-breathe {
+  animation: np-breathe 3s ease-in-out infinite;
+}
+
+/* Name text effects */
+@keyframes name-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes name-rainbow {
+  0% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(180deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+@keyframes name-glowPulse {
+  0%, 100% { text-shadow: 0 0 4px currentColor, 0 0 8px currentColor; }
+  50% { text-shadow: 0 0 8px currentColor, 0 0 16px currentColor, 0 0 24px currentColor; }
+}
+.name-effect-shimmer {
+  background: linear-gradient(90deg, currentColor 0%, #fff 50%, currentColor 100%) !important;
+  background-size: 200% 100%;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: name-shimmer 2.5s linear infinite;
+}
+.name-effect-rainbow {
+  animation: name-rainbow 4s linear infinite;
+}
+.name-effect-glowPulse {
+  animation: name-glowPulse 2s ease-in-out infinite;
+}
+
+/* Avatar ring */
+@keyframes ring-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.avatar-ring-animated::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-c1), var(--ring-c2), var(--ring-c1));
+  animation: ring-spin 3s linear infinite;
+  z-index: -1;
+}
+.avatar-ring-animated::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  background: var(--tw-bg-discord-channel, #2b2d31);
+  z-index: -1;
+}
+
 /* Theme-aware overrides for components that hardcode text-white */
 .theme-light .text-white,
 .theme-sepia .text-white,

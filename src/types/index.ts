@@ -37,7 +37,40 @@ export interface User {
   name_gradient_end: string | null;
   name_font: NameFont;
   selected_server_tag: string | null;
+  nameplate: NameplateConfig | null;
+  avatar_ring: AvatarRingConfig | null;
+  name_effect: NameEffect;
   created_at: string;
+}
+
+export interface NameplateStop {
+  color: string;
+  position: number; // 0-100
+}
+
+export interface NameplateConfig {
+  stops: NameplateStop[];
+  angle: number;
+  pattern: string | null; // "dots" | "stripes" | "waves" | "grid" | "diamonds" | null
+  patternOpacity: number;
+  glow: boolean;
+  glowColor: string;
+  borderStyle: string | null; // "solid" | "dashed" | "double" | null
+  borderColor: string;
+  borderRadius: number;
+  paddingX: number;
+  paddingY: number;
+  animation: NameplateAnimation;
+}
+
+export type NameplateAnimation = "none" | "shimmer" | "pulse" | "colorShift" | "breathe";
+
+export type NameEffect = "none" | "shimmer" | "rainbow" | "glowPulse";
+
+export interface AvatarRingConfig {
+  color1: string;
+  color2: string;
+  style: "solid" | "gradient" | "animated";
 }
 
 export interface Badge {
@@ -81,6 +114,7 @@ export interface Server {
   banner_gradient_angle: number | null;
   tag: string | null;
   tags: string[];
+  tag_icons: Record<string, string>;
   owner_id: string;
   is_suspended: boolean;
   is_discoverable: boolean;

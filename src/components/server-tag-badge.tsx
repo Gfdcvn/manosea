@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRouter } from "next/navigation";
@@ -19,15 +19,24 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
   const [memberCount, setMemberCount] = useState(0);
   const [joining, setJoining] = useState(false);
   const [isMember, setIsMember] = useState(false);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const badgeRef = useRef<HTMLButtonElement>(null);
   const servers = useServerStore((s) => s.servers);
   const fetchServers = useServerStore((s) => s.fetchServers);
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
 
+  // Find the emoji for this tag
+  const tagServer = servers.find((s) => (s.tags || []).includes(tag));
+  const tagIcon = tagServer?.tag_icons?.[tag] || null;
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+      if (
+        popupRef.current && !popupRef.current.contains(e.target as Node) &&
+        badgeRef.current && !badgeRef.current.contains(e.target as Node)
+      ) {
         setShowPopup(false);
       }
     }
@@ -37,12 +46,27 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
     }
   }, [showPopup]);
 
+  const positionPopup = useCallback(() => {
+    if (!badgeRef.current) return;
+    const rect = badgeRef.current.getBoundingClientRect();
+    const popupWidth = 288;
+    const popupHeight = 280;
+    let top = rect.top - popupHeight - 8;
+    let left = rect.left + rect.width / 2 - popupWidth / 2;
+    // Keep within viewport
+    if (top < 8) top = rect.bottom + 8;
+    if (left < 8) left = 8;
+    if (left + popupWidth > window.innerWidth - 8) left = window.innerWidth - popupWidth - 8;
+    setPopupPos({ top, left });
+  }, []);
+
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Find server with this tag
+    e.preventDefault();
+    if (showPopup) { setShowPopup(false); return; }
+    positionPopup();
     const found = servers.find((s) => (s.tags || []).includes(tag));
     if (!found) {
-      // Try fetching from DB
       const supabase = createClient();
       const { data } = await supabase
         .from("servers")
@@ -75,7 +99,7 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
         .select("*", { count: "exact", head: true })
         .eq("server_id", found.id);
       setMemberCount(count || 0);
-      setIsMember(true); // Already in our server list
+      setIsMember(true);
     }
     setShowPopup(true);
   };
@@ -88,7 +112,6 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
     await fetchServers();
     setJoining(false);
     setShowPopup(false);
-    // Navigate to server
     const { data: channels } = await supabase
       .from("channels")
       .select("id")
@@ -126,29 +149,32 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
     : {};
 
   return (
-    <span className="relative inline-flex">
+    <>
       <button
+        ref={badgeRef}
         onClick={handleClick}
-        className="text-[10px] font-bold bg-discord-brand/20 text-discord-brand px-1.5 py-0.5 rounded-full hover:bg-discord-brand/30 transition-colors cursor-pointer leading-tight"
+        className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-discord-brand/20 text-discord-brand px-1.5 py-0.5 rounded-full hover:bg-discord-brand/30 transition-colors cursor-pointer leading-tight"
       >
+        {tagIcon && <span className="text-[10px]">{tagIcon}</span>}
         {tag}
       </button>
-      {showPopup && server && (
+      {showPopup && server && popupPos && (
         <div
           ref={popupRef}
-          className="absolute z-[100] bottom-full mb-2 left-1/2 -translate-x-1/2 w-72 bg-discord-darker rounded-xl shadow-2xl border border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          className="fixed z-[9999] w-72 bg-discord-darker rounded-xl shadow-2xl border border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          style={{ top: popupPos.top, left: popupPos.left }}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Banner */}
           <div className="h-24 relative" style={bannerStyle}>
-            {server.icon_url && (
+            {server.icon_url ? (
               <Avatar className="absolute -bottom-6 left-4 w-14 h-14 border-4 border-discord-darker">
                 <AvatarImage src={server.icon_url} />
                 <AvatarFallback className="bg-discord-brand text-white text-lg">
                   {server.name.charAt(0)}
                 </AvatarFallback>
               </Avatar>
-            )}
-            {!server.icon_url && (
+            ) : (
               <div className="absolute -bottom-6 left-4 w-14 h-14 border-4 border-discord-darker rounded-full bg-discord-brand flex items-center justify-center text-white text-lg font-bold">
                 {server.name.charAt(0)}
               </div>
@@ -165,7 +191,10 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
                 <span className="w-2 h-2 rounded-full bg-green-500" />
                 {memberCount} member{memberCount !== 1 ? "s" : ""}
               </span>
-              <span className="text-discord-brand font-medium">{tag}</span>
+              <span className="text-discord-brand font-medium flex items-center gap-0.5">
+                {tagIcon && <span>{tagIcon}</span>}
+                {tag}
+              </span>
             </div>
             <div className="mt-3">
               {isMember ? (
@@ -188,6 +217,6 @@ export function ServerTagBadge({ tag }: ServerTagBadgeProps) {
           </div>
         </div>
       )}
-    </span>
+    </>
   );
 }

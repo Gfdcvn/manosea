@@ -79,7 +79,9 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
   const [bannerColor, setBannerColor] = useState(currentServer?.banner_color || "#5865F2");
   const [tag, setTag] = useState(currentServer?.tag || "");
   const [tags, setTags] = useState<string[]>(currentServer?.tags || []);
+  const [tagIcons, setTagIcons] = useState<Record<string, string>>(currentServer?.tag_icons || {});
   const [newTag, setNewTag] = useState("");
+  const [emojiPickerTag, setEmojiPickerTag] = useState<string | null>(null);
   const [isDiscoverable, setIsDiscoverable] = useState(currentServer?.is_discoverable || false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState(currentServer?.banner_color || "#5865F2");
@@ -104,6 +106,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
       setBannerColor(currentServer.banner_color || "#5865F2");
       setTag(currentServer.tag || "");
       setTags(currentServer.tags || []);
+      setTagIcons(currentServer.tag_icons || {});
       setIsDiscoverable(currentServer.is_discoverable || false);
       setCustomColor(currentServer.banner_color || "#5865F2");
       setBannerMode(currentServer.banner_gradient_start && currentServer.banner_gradient_end ? "gradient" : "solid");
@@ -166,12 +169,15 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
   const handleRemoveTag = useCallback(async (tagToRemove: string) => {
     const newTags = tags.filter((t) => t !== tagToRemove);
     setTags(newTags);
+    const newIcons = { ...tagIcons };
+    delete newIcons[tagToRemove];
+    setTagIcons(newIcons);
     const isPrimary = tag === tagToRemove;
     const newPrimary = isPrimary ? (newTags[0] || null) : tag;
     if (isPrimary) setTag(newPrimary || "");
-    await updateServer(serverId, { tags: newTags, ...(isPrimary ? { tag: newPrimary } : {}) } as unknown as Partial<Server>);
+    await updateServer(serverId, { tags: newTags, tag_icons: newIcons, ...(isPrimary ? { tag: newPrimary } : {}) } as unknown as Partial<Server>);
     await fetchServers();
-  }, [tags, tag, serverId, updateServer, fetchServers]);
+  }, [tags, tagIcons, tag, serverId, updateServer, fetchServers]);
 
   // Set a tag as primary
   const handleSetPrimaryTag = useCallback(async (t: string) => {
@@ -335,9 +341,10 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                           <div className="flex gap-1 flex-wrap mt-1">
                             {tags.map((t) => (
                               <span key={t} className={cn(
-                                "text-xs px-2 py-0.5 rounded-full font-medium",
+                                "text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5",
                                 t === tag ? "bg-discord-brand/20 text-discord-brand" : "bg-gray-700/50 text-gray-400"
                               )}>
+                                {tagIcons[t] && <span>{tagIcons[t]}</span>}
                                 {t}
                               </span>
                             ))}
@@ -410,6 +417,13 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                           )}
                         >
                           <button
+                            onClick={() => setEmojiPickerTag(emojiPickerTag === t ? null : t)}
+                            className="hover:bg-white/10 rounded px-0.5 transition-colors"
+                            title="Set icon"
+                          >
+                            {tagIcons[t] || "😀"}
+                          </button>
+                          <button
                             onClick={() => handleSetPrimaryTag(t)}
                             className="hover:underline"
                             title={t === tag ? "Primary tag" : "Set as primary"}
@@ -427,6 +441,48 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Emoji picker for tag */}
+                  {emojiPickerTag && (
+                    <div className="mb-3 p-3 bg-discord-dark rounded-lg border border-gray-700">
+                      <p className="text-xs text-gray-400 mb-2">Pick an icon for <span className="font-bold text-white">{emojiPickerTag}</span></p>
+                      <div className="grid grid-cols-10 gap-1">
+                        {["⚡","🔥","💎","🎮","🎵","🎨","🚀","⭐","🏆","💫","🎯","🛡️","⚔️","🌟","💀","🐉","🦁","🌈","❤️","👑"].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={async () => {
+                              const newIcons = { ...tagIcons, [emojiPickerTag]: emoji };
+                              setTagIcons(newIcons);
+                              setEmojiPickerTag(null);
+                              await updateServer(serverId, { tag_icons: newIcons } as unknown as Partial<Server>);
+                              await fetchServers();
+                            }}
+                            className={cn(
+                              "w-8 h-8 flex items-center justify-center rounded-md text-base hover:bg-discord-hover transition-colors",
+                              tagIcons[emojiPickerTag] === emoji && "bg-discord-brand/30 ring-2 ring-discord-brand"
+                            )}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                      {tagIcons[emojiPickerTag] && (
+                        <button
+                          onClick={async () => {
+                            const newIcons = { ...tagIcons };
+                            delete newIcons[emojiPickerTag];
+                            setTagIcons(newIcons);
+                            setEmojiPickerTag(null);
+                            await updateServer(serverId, { tag_icons: newIcons } as unknown as Partial<Server>);
+                            await fetchServers();
+                          }}
+                          className="text-xs text-red-400 hover:text-red-300 mt-2"
+                        >
+                          Remove icon
+                        </button>
+                      )}
                     </div>
                   )}
 

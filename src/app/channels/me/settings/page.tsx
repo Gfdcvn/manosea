@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore, Theme } from "@/stores/theme-store";
 import { useNotificationStore } from "@/stores/notification-store";
 import { useServerStore } from "@/stores/server-store";
-import { UserBadge, Punishment, NameFont, NAME_FONTS } from "@/types";
+import { UserBadge, Punishment, NameFont, NAME_FONTS, NameplateConfig, NameEffect, AvatarRingConfig } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -92,7 +92,7 @@ const THEME_OPTIONS: { id: Theme; label: string; description: string; preview: {
   },
   {
     id: "rose",
-    label: "Rosé",
+    label: "RosÃ©",
     description: "Soft pink and warm hues",
     preview: { bg: "#1f1018", sidebar: "#241520", chat: "#2a1a22", text: "#e8d0d8" },
   },
@@ -177,6 +177,11 @@ export default function SettingsPage() {
   const [selectedServerTag, setSelectedServerTag] = useState<string | null>(null);
   const [tagSearch, setTagSearch] = useState("");
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [nameplate, setNameplate] = useState<NameplateConfig | null>(null);
+  const [nameplateOpen, setNameplateOpen] = useState(false);
+  const [avatarRing, setAvatarRing] = useState<AvatarRingConfig | null>(null);
+  const [avatarRingOpen, setAvatarRingOpen] = useState(false);
+  const [nameEffect, setNameEffect] = useState<NameEffect>("none");
 
   useEffect(() => {
     if (user) {
@@ -189,6 +194,9 @@ export default function SettingsPage() {
       setAvatarPreview(user.avatar_url || null);
       setBannerPreview(user.banner_url || null);
       setSelectedServerTag(user.selected_server_tag || null);
+      setNameplate(user.nameplate || null);
+      setAvatarRing(user.avatar_ring || null);
+      setNameEffect(user.name_effect || "none");
       setNameColor(user.name_color || null);
       setNameGradientStart(user.name_gradient_start || null);
       setNameGradientEnd(user.name_gradient_end || null);
@@ -722,6 +730,622 @@ export default function SettingsPage() {
 
                 <Separator className="my-4" />
 
+                {/* Nameplate Builder */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs font-bold text-gray-300 uppercase">Nameplate</Label>
+                      <p className="text-xs text-gray-400">A custom background behind your name in member lists and DMs.</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={nameplateOpen ? "default" : "outline"}
+                      onClick={() => setNameplateOpen(!nameplateOpen)}
+                      className="text-xs"
+                    >
+                      {nameplate ? "Edit" : "Create"}
+                    </Button>
+                  </div>
+
+                  {/* Live preview */}
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-discord-dark">
+                    <Avatar className="w-8 h-8 shrink-0">
+                      <AvatarImage src={user.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs">{user.display_name?.charAt(0) || "?"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex items-center gap-1 min-w-0">
+                      {nameplate ? (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium text-white relative overflow-hidden"
+                          style={{
+                            background: nameplate.stops.length >= 2
+                              ? `linear-gradient(${nameplate.angle}deg, ${nameplate.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`
+                              : nameplate.stops[0]?.color || "#5865f2",
+                            borderRadius: `${nameplate.borderRadius}px`,
+                            padding: `${nameplate.paddingY}px ${nameplate.paddingX}px`,
+                            ...(nameplate.borderStyle ? { border: `2px ${nameplate.borderStyle} ${nameplate.borderColor}` } : {}),
+                            ...(nameplate.glow ? { boxShadow: `0 0 12px ${nameplate.glowColor}44, 0 0 4px ${nameplate.glowColor}66` } : {}),
+                          }}
+                        >
+                          {nameplate.pattern && (
+                            <span className="absolute inset-0 pointer-events-none" style={{ opacity: nameplate.patternOpacity / 100 }}>
+                              {nameplate.pattern === "dots" && (
+                                <svg width="100%" height="100%"><defs><pattern id="np-dots" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="white"/></pattern></defs><rect width="100%" height="100%" fill="url(#np-dots)"/></svg>
+                              )}
+                              {nameplate.pattern === "stripes" && (
+                                <svg width="100%" height="100%"><defs><pattern id="np-stripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="white" strokeWidth="1.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#np-stripes)"/></svg>
+                              )}
+                              {nameplate.pattern === "waves" && (
+                                <svg width="100%" height="100%"><defs><pattern id="np-waves" width="20" height="10" patternUnits="userSpaceOnUse"><path d="M0 5 Q5 0 10 5 Q15 10 20 5" fill="none" stroke="white" strokeWidth="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#np-waves)"/></svg>
+                              )}
+                              {nameplate.pattern === "grid" && (
+                                <svg width="100%" height="100%"><defs><pattern id="np-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0L0 0 0 10" fill="none" stroke="white" strokeWidth="0.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#np-grid)"/></svg>
+                              )}
+                              {nameplate.pattern === "diamonds" && (
+                                <svg width="100%" height="100%"><defs><pattern id="np-diamonds" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M6 0L12 6L6 12L0 6Z" fill="none" stroke="white" strokeWidth="0.8"/></pattern></defs><rect width="100%" height="100%" fill="url(#np-diamonds)"/></svg>
+                              )}
+                            </span>
+                          )}
+                          <span className="relative z-10">{user.display_name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-300">{user.display_name}</span>
+                      )}
+                      {selectedServerTag && (
+                        <span className="text-[10px] font-bold bg-discord-brand/20 text-discord-brand px-1.5 py-0.5 rounded-full">
+                          {selectedServerTag}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {nameplateOpen && (
+                    <div className="space-y-4 p-4 bg-discord-dark rounded-lg border border-gray-700">
+                      {/* Gradient Stops */}
+                      <div>
+                        <Label className="text-xs text-gray-400 mb-2 block">Gradient Stops</Label>
+                        <p className="text-[10px] text-gray-500 mb-2">Add up to 6 color stops. Drag the position slider to adjust.</p>
+                        <div className="space-y-2">
+                          {(nameplate?.stops || [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }]).map((stop, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={stop.color}
+                                onChange={(e) => {
+                                  const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                  const newStops = [...np.stops];
+                                  newStops[i] = { ...newStops[i], color: e.target.value };
+                                  setNameplate({ ...np, stops: newStops });
+                                }}
+                                className="w-8 h-8 rounded border border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch-wrapper]:p-0.5"
+                              />
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={stop.position}
+                                onChange={(e) => {
+                                  const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                  const newStops = [...np.stops];
+                                  newStops[i] = { ...newStops[i], position: Number(e.target.value) };
+                                  setNameplate({ ...np, stops: newStops });
+                                }}
+                                className="flex-1 accent-discord-brand"
+                              />
+                              <span className="text-[10px] text-gray-500 w-8 text-right">{stop.position}%</span>
+                              {(nameplate?.stops || []).length > 2 && (
+                                <button
+                                  onClick={() => {
+                                    const np = nameplate!;
+                                    setNameplate({ ...np, stops: np.stops.filter((_, j) => j !== i) });
+                                  }}
+                                  className="text-gray-500 hover:text-red-400 text-sm"
+                                >
+                                  Ã—
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {(nameplate?.stops || []).length < 6 && (
+                          <button
+                            onClick={() => {
+                              const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                              const lastPos = np.stops[np.stops.length - 1]?.position || 100;
+                              setNameplate({ ...np, stops: [...np.stops, { color: "#57f287", position: Math.min(lastPos + 10, 100) }] });
+                            }}
+                            className="text-xs text-discord-brand hover:text-discord-brand/80 mt-2"
+                          >
+                            + Add stop
+                          </button>
+                        )}
+                        {/* Gradient preview */}
+                        <div
+                          className="h-4 rounded-full mt-2"
+                          style={{
+                            background: (nameplate?.stops || [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }]).length >= 2
+                              ? `linear-gradient(90deg, ${(nameplate?.stops || [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }]).map(s => `${s.color} ${s.position}%`).join(", ")})`
+                              : nameplate?.stops?.[0]?.color || "#5865f2"
+                          }}
+                        />
+                      </div>
+
+                      {/* Angle */}
+                      <div>
+                        <Label className="text-xs text-gray-400 mb-1 block">Angle: {nameplate?.angle ?? 90}Â°</Label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={360}
+                          value={nameplate?.angle ?? 90}
+                          onChange={(e) => {
+                            const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                            setNameplate({ ...np, angle: Number(e.target.value) });
+                          }}
+                          className="w-full accent-discord-brand"
+                        />
+                      </div>
+
+                      {/* Preset gradients */}
+                      <div>
+                        <Label className="text-xs text-gray-400 mb-2 block">Quick Presets</Label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[
+                            { stops: [{ color: "#667eea", position: 0 }, { color: "#764ba2", position: 100 }], label: "Twilight" },
+                            { stops: [{ color: "#f093fb", position: 0 }, { color: "#f5576c", position: 100 }], label: "Rose" },
+                            { stops: [{ color: "#4facfe", position: 0 }, { color: "#00f2fe", position: 100 }], label: "Ocean" },
+                            { stops: [{ color: "#43e97b", position: 0 }, { color: "#38f9d7", position: 100 }], label: "Mint" },
+                            { stops: [{ color: "#fa709a", position: 0 }, { color: "#fee140", position: 100 }], label: "Sunset" },
+                            { stops: [{ color: "#a18cd1", position: 0 }, { color: "#fbc2eb", position: 100 }], label: "Lavender" },
+                            { stops: [{ color: "#fccb90", position: 0 }, { color: "#d57eeb", position: 100 }], label: "Peach" },
+                            { stops: [{ color: "#ff0844", position: 0 }, { color: "#ffb199", position: 100 }], label: "Fire" },
+                            { stops: [{ color: "#96fbc4", position: 0 }, { color: "#f9f586", position: 50 }, { color: "#f68084", position: 100 }], label: "Rainbow" },
+                            { stops: [{ color: "#0c0c0c", position: 0 }, { color: "#5865f2", position: 50 }, { color: "#0c0c0c", position: 100 }], label: "Pulse" },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              onClick={() => {
+                                const np = nameplate || { stops: [], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                setNameplate({ ...np, stops: preset.stops });
+                              }}
+                              className="flex flex-col items-center gap-1"
+                            >
+                              <div
+                                className="w-full h-5 rounded-md border border-gray-700 hover:border-gray-500 transition-colors"
+                                style={{ background: `linear-gradient(90deg, ${preset.stops.map(s => `${s.color} ${s.position}%`).join(", ")})` }}
+                              />
+                              <span className="text-[9px] text-gray-500">{preset.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Pattern */}
+                      <div>
+                        <Label className="text-xs text-gray-400 mb-2 block">Pattern Overlay</Label>
+                        <div className="flex gap-2 flex-wrap">
+                          {[
+                            { id: null, label: "None" },
+                            { id: "dots", label: "Dots" },
+                            { id: "stripes", label: "Stripes" },
+                            { id: "waves", label: "Waves" },
+                            { id: "grid", label: "Grid" },
+                            { id: "diamonds", label: "Diamonds" },
+                          ].map((p) => (
+                            <button
+                              key={p.label}
+                              onClick={() => {
+                                const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                setNameplate({ ...np, pattern: p.id });
+                              }}
+                              className={cn(
+                                "px-2.5 py-1 rounded text-xs transition-colors",
+                                (nameplate?.pattern || null) === p.id
+                                  ? "bg-discord-brand text-white"
+                                  : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                              )}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        {nameplate?.pattern && (
+                          <div className="mt-2">
+                            <Label className="text-[10px] text-gray-500 mb-1 block">Opacity: {nameplate.patternOpacity}%</Label>
+                            <input
+                              type="range"
+                              min={5}
+                              max={80}
+                              value={nameplate.patternOpacity}
+                              onChange={(e) => setNameplate({ ...nameplate, patternOpacity: Number(e.target.value) })}
+                              className="w-full accent-discord-brand"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Effects Row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Glow */}
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Glow</Label>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                setNameplate({ ...np, glow: !np.glow });
+                              }}
+                              className={cn(
+                                "w-8 h-5 rounded-full transition-colors relative",
+                                nameplate?.glow ? "bg-discord-brand" : "bg-gray-700"
+                              )}
+                            >
+                              <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", nameplate?.glow ? "left-3.5" : "left-0.5")} />
+                            </button>
+                            {nameplate?.glow && (
+                              <input
+                                type="color"
+                                value={nameplate.glowColor}
+                                onChange={(e) => setNameplate({ ...nameplate, glowColor: e.target.value })}
+                                className="w-6 h-6 rounded border border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch-wrapper]:p-0"
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Border */}
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1 block">Border</Label>
+                          <div className="flex gap-1.5">
+                            {[
+                              { id: null, label: "None" },
+                              { id: "solid", label: "â”" },
+                              { id: "dashed", label: "â”„" },
+                              { id: "double", label: "â•" },
+                            ].map((b) => (
+                              <button
+                                key={b.label}
+                                onClick={() => {
+                                  const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                  setNameplate({ ...np, borderStyle: b.id });
+                                }}
+                                className={cn(
+                                  "w-8 h-8 flex items-center justify-center rounded text-sm transition-colors",
+                                  (nameplate?.borderStyle || null) === b.id
+                                    ? "bg-discord-brand text-white"
+                                    : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                                )}
+                                title={b.label === "None" ? "None" : b.id || ""}
+                              >
+                                {b.id === null ? "âˆ…" : b.label}
+                              </button>
+                            ))}
+                            {nameplate?.borderStyle && (
+                              <input
+                                type="color"
+                                value={nameplate.borderColor}
+                                onChange={(e) => setNameplate({ ...nameplate, borderColor: e.target.value })}
+                                className="w-8 h-8 rounded border border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch-wrapper]:p-0.5"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Shape controls */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-[10px] text-gray-500 mb-1 block">Roundness: {nameplate?.borderRadius ?? 4}</Label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={20}
+                            value={nameplate?.borderRadius ?? 4}
+                            onChange={(e) => {
+                              const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                              setNameplate({ ...np, borderRadius: Number(e.target.value) });
+                            }}
+                            className="w-full accent-discord-brand"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-gray-500 mb-1 block">Width: {nameplate?.paddingX ?? 8}</Label>
+                          <input
+                            type="range"
+                            min={2}
+                            max={24}
+                            value={nameplate?.paddingX ?? 8}
+                            onChange={(e) => {
+                              const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                              setNameplate({ ...np, paddingX: Number(e.target.value) });
+                            }}
+                            className="w-full accent-discord-brand"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-gray-500 mb-1 block">Height: {nameplate?.paddingY ?? 2}</Label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={12}
+                            value={nameplate?.paddingY ?? 2}
+                            onChange={(e) => {
+                              const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                              setNameplate({ ...np, paddingY: Number(e.target.value) });
+                            }}
+                            className="w-full accent-discord-brand"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Animation */}
+                      <div>
+                        <Label className="text-xs text-gray-400 mb-2 block">Animation</Label>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {([
+                            { id: "none", label: "None" },
+                            { id: "shimmer", label: "Shimmer" },
+                            { id: "pulse", label: "Pulse" },
+                            { id: "colorShift", label: "Color Shift" },
+                            { id: "breathe", label: "Breathe" },
+                          ] as const).map((a) => (
+                            <button
+                              key={a.id}
+                              onClick={() => {
+                                const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                                setNameplate({ ...np, animation: a.id });
+                              }}
+                              className={cn(
+                                "px-2.5 py-1 rounded text-xs transition-colors",
+                                (nameplate?.animation || "none") === a.id
+                                  ? "bg-discord-brand text-white"
+                                  : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                              )}
+                            >
+                              {a.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Save / Remove */}
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          onClick={async () => {
+                            const np = nameplate || { stops: [{ color: "#5865f2", position: 0 }, { color: "#eb459e", position: 100 }], angle: 90, pattern: null, patternOpacity: 30, glow: false, glowColor: "#5865f2", borderStyle: null, borderColor: "#ffffff", borderRadius: 4, paddingX: 8, paddingY: 2, animation: "none" as const };
+                            setNameplate(np);
+                            await updateProfile({ nameplate: np });
+                            flashSaved();
+                            setNameplateOpen(false);
+                          }}
+                          className="flex-1 bg-discord-brand hover:bg-discord-brand/80"
+                          size="sm"
+                        >
+                          Save Nameplate
+                        </Button>
+                        {nameplate && (
+                          <Button
+                            onClick={async () => {
+                              setNameplate(null);
+                              await updateProfile({ nameplate: null });
+                              flashSaved();
+                              setNameplateOpen(false);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-400 border-red-400/30 hover:bg-red-400/10"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Avatar Ring */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs font-bold text-gray-300 uppercase">Avatar Ring</Label>
+                      <p className="text-xs text-gray-400">A decorative ring around your avatar.</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={avatarRingOpen ? "default" : "outline"}
+                      onClick={() => setAvatarRingOpen(!avatarRingOpen)}
+                      className="text-xs"
+                    >
+                      {avatarRing ? "Edit" : "Create"}
+                    </Button>
+                  </div>
+
+                  {/* Ring preview */}
+                  <div className="flex items-center justify-center p-4 rounded-lg bg-discord-dark">
+                    <div className="relative">
+                      {avatarRing && (
+                        <div
+                          className={cn("absolute inset-[-4px] rounded-full", avatarRing.style === "animated" && "avatar-ring-animated")}
+                          style={{
+                            background: avatarRing.style === "solid" ? avatarRing.color1 : `linear-gradient(135deg, ${avatarRing.color1}, ${avatarRing.color2})`,
+                            ...(avatarRing.style === "animated" ? { "--ring-c1": avatarRing.color1, "--ring-c2": avatarRing.color2 } as React.CSSProperties : {}),
+                          }}
+                        />
+                      )}
+                      <Avatar className="w-16 h-16 relative">
+                        <AvatarImage src={user.avatar_url || undefined} />
+                        <AvatarFallback>{user.display_name?.charAt(0) || "?"}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </div>
+
+                  {avatarRingOpen && (
+                    <div className="space-y-3 p-4 bg-discord-dark rounded-lg border border-gray-700">
+                      {/* Style */}
+                      <div>
+                        <Label className="text-xs text-gray-400 mb-2 block">Style</Label>
+                        <div className="flex gap-1.5">
+                          {([
+                            { id: "solid", label: "Solid" },
+                            { id: "gradient", label: "Gradient" },
+                            { id: "animated", label: "Animated" },
+                          ] as const).map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => {
+                                const r = avatarRing || { color1: "#5865f2", color2: "#eb459e", style: "solid" as const };
+                                setAvatarRing({ ...r, style: s.id });
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 rounded text-xs transition-colors",
+                                (avatarRing?.style || "solid") === s.id
+                                  ? "bg-discord-brand text-white"
+                                  : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                              )}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Colors */}
+                      <div className="flex gap-4">
+                        <div>
+                          <Label className="text-[10px] text-gray-500 mb-1 block">Color 1</Label>
+                          <input
+                            type="color"
+                            value={avatarRing?.color1 || "#5865f2"}
+                            onChange={(e) => {
+                              const r = avatarRing || { color1: "#5865f2", color2: "#eb459e", style: "solid" as const };
+                              setAvatarRing({ ...r, color1: e.target.value });
+                            }}
+                            className="w-10 h-10 rounded border border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch-wrapper]:p-0.5"
+                          />
+                        </div>
+                        {(avatarRing?.style || "solid") !== "solid" && (
+                          <div>
+                            <Label className="text-[10px] text-gray-500 mb-1 block">Color 2</Label>
+                            <input
+                              type="color"
+                              value={avatarRing?.color2 || "#eb459e"}
+                              onChange={(e) => {
+                                const r = avatarRing || { color1: "#5865f2", color2: "#eb459e", style: "gradient" as const };
+                                setAvatarRing({ ...r, color2: e.target.value });
+                              }}
+                              className="w-10 h-10 rounded border border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch-wrapper]:p-0.5"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick color presets */}
+                      <div>
+                        <Label className="text-[10px] text-gray-500 mb-1 block">Presets</Label>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {[
+                            { c1: "#5865f2", c2: "#eb459e", label: "Blurple-Pink" },
+                            { c1: "#57f287", c2: "#fee75c", label: "Green-Gold" },
+                            { c1: "#ed4245", c2: "#ff7a00", label: "Red-Orange" },
+                            { c1: "#00d4ff", c2: "#7c3aed", label: "Cyan-Purple" },
+                            { c1: "#f472b6", c2: "#a78bfa", label: "Pink-Lavender" },
+                            { c1: "#fbbf24", c2: "#ef4444", label: "Gold-Red" },
+                          ].map((p) => (
+                            <button
+                              key={p.label}
+                              onClick={() => {
+                                const r = avatarRing || { color1: "#5865f2", color2: "#eb459e", style: "gradient" as const };
+                                setAvatarRing({ ...r, color1: p.c1, color2: p.c2, style: r.style === "solid" ? "gradient" as const : r.style });
+                              }}
+                              className="w-6 h-6 rounded-full border border-gray-600 hover:border-gray-400 transition-colors"
+                              style={{ background: `linear-gradient(135deg, ${p.c1}, ${p.c2})` }}
+                              title={p.label}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Save / Remove */}
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          onClick={async () => {
+                            const r = avatarRing || { color1: "#5865f2", color2: "#eb459e", style: "solid" as const };
+                            setAvatarRing(r);
+                            await updateProfile({ avatar_ring: r });
+                            flashSaved();
+                            setAvatarRingOpen(false);
+                          }}
+                          className="flex-1 bg-discord-brand hover:bg-discord-brand/80"
+                          size="sm"
+                        >
+                          Save Ring
+                        </Button>
+                        {avatarRing && (
+                          <Button
+                            onClick={async () => {
+                              setAvatarRing(null);
+                              await updateProfile({ avatar_ring: null });
+                              flashSaved();
+                              setAvatarRingOpen(false);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-400 border-red-400/30 hover:bg-red-400/10"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Name Effect */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Name Effect</Label>
+                  <p className="text-xs text-gray-400">Add an animated effect to your display name.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {([
+                      { id: "none", label: "None", desc: "No effect" },
+                      { id: "shimmer", label: "Shimmer", desc: "Shiny sweep" },
+                      { id: "rainbow", label: "Rainbow", desc: "Color cycle" },
+                      { id: "glowPulse", label: "Glow Pulse", desc: "Pulsing glow" },
+                    ] as const).map((eff) => (
+                      <button
+                        key={eff.id}
+                        onClick={async () => {
+                          setNameEffect(eff.id);
+                          await updateProfile({ name_effect: eff.id });
+                          flashSaved();
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-xs transition-colors flex flex-col items-center gap-0.5 min-w-[70px]",
+                          nameEffect === eff.id
+                            ? "bg-discord-brand text-white"
+                            : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                        )}
+                      >
+                        <span className={cn("text-sm font-medium", eff.id !== "none" && `name-effect-${eff.id}`)}>{eff.label}</span>
+                        <span className="text-[9px] opacity-70">{eff.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Preview */}
+                  <div className="p-3 rounded-lg bg-discord-dark flex items-center gap-2">
+                    <Avatar className="w-8 h-8 shrink-0">
+                      <AvatarImage src={user.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs">{user.display_name?.charAt(0) || "?"}</AvatarFallback>
+                    </Avatar>
+                    <span className={cn("text-sm font-medium text-white", nameEffect !== "none" && `name-effect-${nameEffect}`)}>{user.display_name}</span>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
                 {/* Server Tag Selection */}
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-gray-300 uppercase">Server Tag</Label>
@@ -732,7 +1356,8 @@ export default function SettingsPage() {
                       onClick={() => setTagDropdownOpen(!tagDropdownOpen)}
                     >
                       {selectedServerTag ? (
-                        <span className="text-xs font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          {(() => { const s = servers.find(sv => (sv.tags || []).includes(selectedServerTag)); return s?.tag_icons?.[selectedServerTag] ? <span>{s.tag_icons[selectedServerTag]}</span> : null; })()}
                           {selectedServerTag}
                         </span>
                       ) : (
@@ -786,7 +1411,10 @@ export default function SettingsPage() {
                                     selectedServerTag === tag ? 'bg-discord-brand/20 text-white' : 'text-gray-300 hover:bg-discord-dark'
                                   }`}
                                 >
-                                  <span className="text-xs font-bold bg-discord-brand/10 text-discord-brand px-2 py-0.5 rounded-full">{tag}</span>
+                                  <span className="text-xs font-bold bg-discord-brand/10 text-discord-brand px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                                    {tagServer?.tag_icons?.[tag] && <span>{tagServer.tag_icons[tag]}</span>}
+                                    {tag}
+                                  </span>
                                   {tagServer && <span className="text-xs text-gray-500 truncate">from {tagServer.name}</span>}
                                 </button>
                               );
@@ -1018,13 +1646,13 @@ export default function SettingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="button_only">
-                      Button Only — Send with button click only
+                      Button Only â€” Send with button click only
                     </SelectItem>
                     <SelectItem value="button_or_enter">
-                      Enter to Send — Press Enter or click button
+                      Enter to Send â€” Press Enter or click button
                     </SelectItem>
                     <SelectItem value="button_or_shift_enter">
-                      Shift+Enter to Send — Press Shift+Enter or click button
+                      Shift+Enter to Send â€” Press Shift+Enter or click button
                     </SelectItem>
                   </SelectContent>
                 </Select>
