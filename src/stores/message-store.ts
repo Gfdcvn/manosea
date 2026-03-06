@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Message, DMChannel, TypingIndicator } from "@/types";
+import { Message, DMChannel, TypingIndicator, PinnedMessage } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 
 interface MessageState {
@@ -11,6 +11,7 @@ interface MessageState {
   isLoading: boolean;
   hasMore: boolean;
   unreadDmChannels: Set<string>;
+  pinnedMessages: PinnedMessage[];
 
   setMessages: (messages: Message[]) => void;
   setCurrentChannelId: (id: string | null) => void;
@@ -33,6 +34,10 @@ interface MessageState {
   sendTyping: (channelId: string) => void;
   addTypingUser: (indicator: TypingIndicator) => void;
   removeTypingUser: (userId: string) => void;
+
+  fetchPinnedMessages: (channelId: string, isDm?: boolean) => Promise<void>;
+  pinMessage: (messageId: string, channelId: string, userId: string, isDm?: boolean) => Promise<void>;
+  unpinMessage: (messageId: string) => Promise<void>;
 }
 
 export const useMessageStore = create<MessageState>((set, get) => ({
@@ -44,6 +49,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   isLoading: false,
   hasMore: true,
   unreadDmChannels: new Set<string>(),
+  pinnedMessages: [],
 
   setMessages: (messages) => set({ messages }),
   setCurrentChannelId: (currentChannelId) => set({ currentChannelId }),
@@ -291,4 +297,38 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set((state) => ({
       typingUsers: state.typingUsers.filter((t) => t.user_id !== userId),
     })),
+
+  fetchPinnedMessages: async (channelId, isDm = false) => {
+    const supabase = createClient();
+    const col = isDm ? "dm_channel_id" : "channel_id";
+    const { data } = await supabase
+      .from("pinned_messages")
+      .select("*, message:messages(*, author:users(*))")
+      .eq(col, channelId)
+      .order("pinned_at", { ascending: false });
+    set({ pinnedMessages: (data as PinnedMessage[]) || [] });
+  },
+
+  pinMessage: async (messageId, channelId, userId, isDm = false) => {
+    const supabase = createClient();
+    const insertData: Record<string, string> = {
+      message_id: messageId,
+      pinned_by: userId,
+    };
+    if (isDm) {
+      insertData.dm_channel_id = channelId;
+    } else {
+      insertData.channel_id = channelId;
+    }
+    await supabase.from("pinned_messages").insert(insertData);
+    await get().fetchPinnedMessages(channelId, isDm);
+  },
+
+  unpinMessage: async (messageId) => {
+    const supabase = createClient();
+    await supabase.from("pinned_messages").delete().eq("message_id", messageId);
+    set((state) => ({
+      pinnedMessages: state.pinnedMessages.filter((p) => p.message_id !== messageId),
+    }));
+  },
 }));

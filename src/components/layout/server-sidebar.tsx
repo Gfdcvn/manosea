@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Plus, Compass, MessageCircle } from "lucide-react";
+import { Plus, Compass, MessageCircle, BadgeCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { CreateServerModal } from "@/components/modals/create-server-modal";
 import { ExploreServersModal } from "@/components/modals/explore-servers-modal";
@@ -123,11 +123,20 @@ export function ServerSidebar() {
                           {mentionCount}
                         </div>
                       )}
+                      {/* Verified badge */}
+                      {server.is_verified && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-discord-brand rounded-full flex items-center justify-center border-2 border-discord-darker">
+                          <BadgeCheck className="w-3 h-3 text-white" />
+                        </div>
+                      )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
                     <div className="flex items-center gap-1.5">
                       <span>{server.name}</span>
+                      {server.is_verified && (
+                        <BadgeCheck className="w-4 h-4 text-discord-brand" />
+                      )}
                       {serverBadgesMap[server.id]?.map((sb) => (
                         <span key={sb.id} title={sb.badge?.name} className="text-sm">
                           {sb.badge?.icon}

@@ -200,7 +200,11 @@ export function ExploreServersModal({ open, onClose }: ExploreServersModalProps)
                     {/* Banner */}
                     <div
                       className="h-28 relative"
-                      style={{ backgroundColor: server.banner_color || "#5865F2" }}
+                      style={
+                        server.banner_gradient_start && server.banner_gradient_end
+                          ? { background: `linear-gradient(${server.banner_gradient_angle || 135}deg, ${server.banner_gradient_start}, ${server.banner_gradient_end})` }
+                          : { backgroundColor: server.banner_color || "#5865F2" }
+                      }
                     >
                       {/* Server icon overlay */}
                       <div className="absolute -bottom-6 left-4">

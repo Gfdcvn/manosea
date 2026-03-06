@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, UserBadge, Punishment } from "@/types";
+import { User, UserBadge, Punishment, NAME_FONTS, NameFont } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -12,7 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Tooltip,  
+  Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
@@ -26,6 +26,22 @@ interface UserProfileCardProps {
   align?: "start" | "center" | "end";
 }
 
+export function getNameStyle(user: User): React.CSSProperties {
+  const font = NAME_FONTS[(user.name_font as NameFont) || "default"] || "inherit";
+  const style: React.CSSProperties = { fontFamily: font };
+
+  if (user.name_gradient_start && user.name_gradient_end) {
+    style.background = `linear-gradient(90deg, ${user.name_gradient_start}, ${user.name_gradient_end})`;
+    style.WebkitBackgroundClip = "text";
+    style.WebkitTextFillColor = "transparent";
+    style.backgroundClip = "text";
+  } else if (user.name_color) {
+    style.color = user.name_color;
+  }
+
+  return style;
+}
+
 export function UserProfileCard({
   user,
   children,
@@ -35,6 +51,8 @@ export function UserProfileCard({
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activePunishments, setActivePunishments] = useState<Punishment[]>([]);
   const [open, setOpen] = useState(false);
+  const [joinedServerName, setJoinedServerName] = useState<string | null>(null);
+  const [joinedServerDate, setJoinedServerDate] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -60,6 +78,25 @@ export function UserProfileCard({
       setActivePunishments((data as Punishment[]) || []);
     };
 
+    const currentServer = useServerStore.getState().currentServer;
+    const members = useServerStore.getState().members;
+    if (currentServer) {
+      setJoinedServerName(currentServer.name);
+      const member = members.find((m) => m.user_id === user.id);
+      if (member) {
+        setJoinedServerDate(
+          new Date(member.joined_at).toLocaleDateString("en-US", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        );
+      }
+    } else {
+      setJoinedServerName(null);
+      setJoinedServerDate(null);
+    }
+
     fetchBadges();
     fetchPunishments();
   }, [open, user.id]);
@@ -75,14 +112,20 @@ export function UserProfileCard({
     }
   };
 
+  const getDaysLeft = (expiresAt: string | null) => {
+    if (!expiresAt) return "never (permanent)";
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    if (diff <= 0) return "soon";
+    const days = Math.ceil(diff / 86400000);
+    return `${days} day${days !== 1 ? "s" : ""}`;
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           className="cursor-pointer text-left"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
+          onClick={(e) => { e.stopPropagation(); }}
         >
           {children}
         </button>
@@ -90,30 +133,24 @@ export function UserProfileCard({
       <PopoverContent
         side={side}
         align={align}
-        className="w-[340px] p-0 bg-discord-dark border-none rounded-xl overflow-hidden shadow-xl"
+        className="w-[340px] p-0 bg-[#232428] border-none rounded-xl overflow-hidden shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Banner / Color strip */}
+        {/* Banner */}
         <div
           className="h-[60px] relative"
-          style={{
-            backgroundColor: user.profile_color || "#5865f2",
-          }}
+          style={{ backgroundColor: user.profile_color || "#5865f2" }}
         >
           {user.banner_url && (
-            <img
-              src={user.banner_url}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={user.banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
           )}
         </div>
 
-        {/* Avatar - overlaps banner */}
+        {/* Avatar */}
         <div className="relative px-4">
           <div className="absolute -top-[38px]">
             <div className="relative">
-              <Avatar className="w-[76px] h-[76px] border-[6px] border-discord-dark">
+              <Avatar className="w-[76px] h-[76px] border-[6px] border-[#232428]">
                 <AvatarImage src={user.avatar_url || undefined} />
                 <AvatarFallback className="text-2xl bg-discord-brand">
                   {user.display_name?.charAt(0) || "?"}
@@ -121,221 +158,169 @@ export function UserProfileCard({
               </Avatar>
               <div
                 className={cn(
-                  "absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-discord-dark",
+                  "absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-[#232428]",
                   getStatusColor(user.status || "offline")
                 )}
               />
             </div>
           </div>
-
-
         </div>
 
-        {/* User info card body */}
         <div className="px-4 pt-10 pb-4">
-          <div className="bg-discord-darker rounded-lg p-3">
-            {/* Name block */}
-            <div className="mb-3">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-lg font-bold text-white leading-tight">
-                  {user.display_name}
-                </h3>
-                {user.is_bot && (
-                  <span className="bg-discord-brand text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">
-                    BOT
-                  </span>
-                )}
-                {/* Punishment icons */}
-                {(() => {
-                  const mutePunishment = activePunishments.find((p) => p.type === "mute");
-                  const suspendPunishment = activePunishments.find((p) => p.type === "suspend");
-                  const banPunishment = activePunishments.find((p) => p.type === "ban");
-                  
-                  const getDaysLeft = (expiresAt: string | null) => {
-                    if (!expiresAt) return "never (permanent)";
-                    const diff = new Date(expiresAt).getTime() - Date.now();
-                    if (diff <= 0) return "soon";
-                    const days = Math.ceil(diff / 86400000);
-                    return `${days} day${days !== 1 ? "s" : ""}`;
-                  };
+          {/* Name + username */}
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="text-lg font-bold leading-tight" style={getNameStyle(user)}>
+                {user.display_name}
+              </h3>
+              {user.is_bot && (
+                <span className="bg-discord-brand text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">BOT</span>
+              )}
+              {activePunishments.find((p) => p.type === "mute") && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
+                        <Headphones className="w-3.5 h-3.5 text-red-500" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]">
+                      <p className="text-sm font-semibold text-red-400">Muted</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Reason: {activePunishments.find((p) => p.type === "mute")?.reason}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Expires in {getDaysLeft(activePunishments.find((p) => p.type === "mute")?.expires_at ?? null)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {activePunishments.find((p) => p.type === "suspend") && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
+                        <Hammer className="w-3.5 h-3.5 text-red-500" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]">
+                      <p className="text-sm font-semibold text-red-400">Suspended</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Reason: {activePunishments.find((p) => p.type === "suspend")?.reason}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Expires in {getDaysLeft(activePunishments.find((p) => p.type === "suspend")?.expires_at ?? null)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {activePunishments.find((p) => p.type === "ban") && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
+                        <Drama className="w-3.5 h-3.5 text-red-500" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]">
+                      <p className="text-sm font-semibold text-red-400">Banned</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Reason: {activePunishments.find((p) => p.type === "ban")?.reason}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Expires in {getDaysLeft(activePunishments.find((p) => p.type === "ban")?.expires_at ?? null)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+            <p className="text-sm text-gray-400">
+              {user.username}#{user.id.slice(-4)}
+            </p>
+          </div>
 
-                  return (
-                    <>
-                      {mutePunishment && (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
-                                <Headphones className="w-3.5 h-3.5 text-red-500" />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="top"
-                              className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]"
-                            >
-                              <p className="text-sm font-semibold text-red-400">This user is muted</p>
-                              <p className="text-xs text-gray-400 mt-0.5">Reason: {mutePunishment.reason}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Will be undone in {getDaysLeft(mutePunishment.expires_at)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      {suspendPunishment && (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
-                                <Hammer className="w-3.5 h-3.5 text-red-500" />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="top"
-                              className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]"
-                            >
-                              <p className="text-sm font-semibold text-red-400">This user is suspended</p>
-                              <p className="text-xs text-gray-400 mt-0.5">Reason: {suspendPunishment.reason}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Will be undone in {getDaysLeft(suspendPunishment.expires_at)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      {banPunishment && (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center cursor-default hover:scale-125 transition-transform">
-                                <Drama className="w-3.5 h-3.5 text-red-500" />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="top"
-                              className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[250px]"
-                            >
-                              <p className="text-sm font-semibold text-red-400">This user is banned</p>
-                              <p className="text-xs text-gray-400 mt-0.5">Reason: {banPunishment.reason}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Will be undone in {getDaysLeft(banPunishment.expires_at)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                    </>
-                  );
-                })()}
+          {/* Three-column info cards */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-discord-darker rounded-lg p-2.5">
+              <p className="text-[11px] font-bold text-white uppercase mb-1">Status</p>
+              <div className="flex items-center gap-1.5">
+                <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(user.status || "offline"))} />
+                <span className="text-[11px] text-gray-300 truncate">{statusLabel(user.status)}</span>
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="text-sm text-gray-400">@{user.username}</p>
-                {badges.length > 0 && badges.map((ub) => (
+            </div>
+            <div className="bg-discord-darker rounded-lg p-2.5">
+              <p className="text-[11px] font-bold text-white uppercase mb-1">Badges</p>
+              <div className="flex flex-wrap gap-0.5">
+                {badges.length > 0 ? badges.slice(0, 4).map((ub) => (
                   <TooltipProvider key={ub.id} delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div
-                          className="w-5 h-5 rounded-md bg-discord-dark flex items-center justify-center cursor-default hover:scale-125 transition-transform"
-                        >
-                          <span className="text-xs">{ub.badge?.icon || "⭐"}</span>
-                        </div>
+                        <span className="text-base cursor-default hover:scale-125 transition-transform inline-block">
+                          {ub.badge?.icon || "⭐"}
+                        </span>
                       </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[200px]"
-                      >
+                      <TooltipContent side="top" className="bg-discord-darker border border-gray-700 rounded-lg px-3 py-2 shadow-xl max-w-[200px]">
                         <p className="text-sm font-semibold text-white">{ub.badge?.name || "Badge"}</p>
-                        {ub.badge?.description && (
-                          <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{ub.badge.description}</p>
-                        )}
+                        {ub.badge?.description && <p className="text-xs text-gray-400 mt-0.5">{ub.badge.description}</p>}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                ))}
-              </div>
-            </div>
-
-            {/* Status */}
-            <div className="flex items-center gap-2 mb-3">
-              <div
-                className={cn(
-                  "w-2.5 h-2.5 rounded-full",
-                  getStatusColor(user.status || "offline")
+                )) : (
+                  <span className="text-[10px] text-gray-500">None</span>
                 )}
-              />
-              <span className="text-xs text-gray-400">{statusLabel(user.status)}</span>
-            </div>
-
-            {/* Separator */}
-            <div className="h-px bg-gray-700 my-3" />
-
-            {/* About Me */}
-            {user.about_me && (
-              <div className="mb-3">
-                <h4 className="text-xs font-bold text-white uppercase mb-1">About Me</h4>
-                <p className="text-sm text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
-                  {user.about_me}
-                </p>
               </div>
-            )}
-
-            {/* Member Since */}
-            <div>
-              <h4 className="text-xs font-bold text-white uppercase mb-1">Member Since</h4>
-              <p className="text-xs text-gray-400">
-                {new Date(user.created_at).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </p>
             </div>
-
-            {/* Roles */}
-            {(() => {
-              const currentServer = useServerStore.getState().currentServer;
-              const members = useServerStore.getState().members;
-              const roles = useServerStore.getState().roles;
-              const memberRoles = useServerStore.getState().memberRoles;
-
-              // Find this user's member record in the current server
-              const member = currentServer ? members.find((m) => m.user_id === user.id) : null;
-              const userRoles = member
-                ? memberRoles
-                    .filter((mr) => mr.member_id === member.id)
-                    .map((mr) => roles.find((r) => r.id === mr.role_id))
-                    .filter((r): r is NonNullable<typeof r> => !!r && r.name !== "@everyone")
-                    .sort((a, b) => a.position - b.position)
-                : [];
-
-              const showSection = userRoles.length > 0 || user.role !== "user";
-              if (!showSection) return null;
-
-              return (
-                <div className="mt-3">
-                  <h4 className="text-xs font-bold text-white uppercase mb-1">Roles</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {userRoles.map((role) => (
-                      <span
-                        key={role.id}
-                        className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1"
-                        style={{ backgroundColor: role.color + "30", color: role.color }}
-                      >
-                        {role.icon && <span>{role.icon}</span>}
-                        {role.name}
-                      </span>
-                    ))}
-                    {user.role !== "user" && (
-                      <span
-                        className={cn(
-                          "text-xs px-2 py-0.5 rounded-full",
-                          user.role === "superadmin"
-                            ? "bg-red-500/20 text-red-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        )}
-                      >
-                        {user.role === "superadmin" ? "Super Admin" : "Admin"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            <div className="bg-discord-darker rounded-lg p-2.5">
+              <p className="text-[11px] font-bold text-white uppercase mb-1">Joined</p>
+              {joinedServerName ? (
+                <>
+                  <p className="text-[10px] text-gray-400 truncate">{joinedServerName}</p>
+                  <p className="text-[10px] text-gray-400">{joinedServerDate}</p>
+                </>
+              ) : (
+                <p className="text-[10px] text-gray-400">
+                  {new Date(user.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
+                </p>
+              )}
+            </div>
           </div>
+
+          <div className="h-px bg-gray-700/50 my-3" />
+
+          {/* Bio */}
+          {user.about_me && (
+            <div className="mb-3">
+              <h4 className="text-sm font-bold text-white mb-1.5">Bio</h4>
+              <p className="text-[13px] text-gray-300 whitespace-pre-wrap break-words leading-relaxed">{user.about_me}</p>
+            </div>
+          )}
+
+          {/* Roles */}
+          {(() => {
+            const currentServer = useServerStore.getState().currentServer;
+            const members = useServerStore.getState().members;
+            const roles = useServerStore.getState().roles;
+            const memberRoles = useServerStore.getState().memberRoles;
+            const member = currentServer ? members.find((m) => m.user_id === user.id) : null;
+            const userRoles = member
+              ? memberRoles
+                  .filter((mr) => mr.member_id === member.id)
+                  .map((mr) => roles.find((r) => r.id === mr.role_id))
+                  .filter((r): r is NonNullable<typeof r> => !!r && r.name !== "@everyone")
+                  .sort((a, b) => a.position - b.position)
+              : [];
+            const showSection = userRoles.length > 0 || user.role !== "user";
+            if (!showSection) return null;
+            return (
+              <div className="mt-2">
+                <h4 className="text-[11px] font-bold text-gray-400 uppercase mb-1.5">Roles</h4>
+                <div className="flex flex-wrap gap-1">
+                  {userRoles.map((role) => (
+                    <span key={role.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: role.color + "30", color: role.color }}>
+                      {role.icon && <span>{role.icon}</span>}
+                      {role.name}
+                    </span>
+                  ))}
+                  {user.role !== "user" && (
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full", user.role === "superadmin" ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400")}>
+                      {user.role === "superadmin" ? "Super Admin" : "Admin"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </PopoverContent>
     </Popover>

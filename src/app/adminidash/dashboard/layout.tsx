@@ -12,6 +12,7 @@ import {
   Bot,
   LayoutDashboard,
   LogOut,
+  Flag,
 } from "lucide-react";
 
 export default function AdminDashboardLayout({
@@ -62,6 +63,7 @@ export default function AdminDashboardLayout({
     { label: "Overview", icon: LayoutDashboard, href: "/adminidash/dashboard", roles: ["admin", "superadmin"] },
     { label: "Users", icon: Users, href: "/adminidash/dashboard/users", roles: ["admin", "superadmin"] },
     { label: "Servers", icon: Server, href: "/adminidash/dashboard/servers", roles: ["admin", "superadmin"] },
+    { label: "Reports", icon: Flag, href: "/adminidash/dashboard/reports", roles: ["admin", "superadmin"] },
     { label: "Management", icon: Shield, href: "/adminidash/dashboard/management", roles: ["superadmin"] },
     { label: "Bots", icon: Bot, href: "/adminidash/dashboard/bots", roles: ["superadmin"] },
   ];

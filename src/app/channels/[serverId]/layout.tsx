@@ -170,9 +170,14 @@ export default function ServerLayout({
     <div className="flex flex-1">
       <div className="w-60 bg-discord-channel flex flex-col">
         {/* Banner color strip */}
-        {currentServer.banner_color && (
+        {(currentServer.banner_gradient_start && currentServer.banner_gradient_end) ? (
+          <div
+            className="h-1.5 shrink-0"
+            style={{ background: `linear-gradient(${currentServer.banner_gradient_angle || 135}deg, ${currentServer.banner_gradient_start}, ${currentServer.banner_gradient_end})` }}
+          />
+        ) : currentServer.banner_color ? (
           <div className="h-1.5 shrink-0" style={{ backgroundColor: currentServer.banner_color }} />
-        )}
+        ) : null}
         {/* Server Header with Settings Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

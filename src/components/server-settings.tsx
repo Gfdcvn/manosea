@@ -79,6 +79,12 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
   const [isDiscoverable, setIsDiscoverable] = useState(currentServer?.is_discoverable || false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState(currentServer?.banner_color || "#5865F2");
+  const [bannerMode, setBannerMode] = useState<"solid" | "gradient">(
+    currentServer?.banner_gradient_start && currentServer?.banner_gradient_end ? "gradient" : "solid"
+  );
+  const [gradientStart, setGradientStart] = useState(currentServer?.banner_gradient_start || "#5865F2");
+  const [gradientEnd, setGradientEnd] = useState(currentServer?.banner_gradient_end || "#eb459e");
+  const [gradientAngle, setGradientAngle] = useState(currentServer?.banner_gradient_angle || 135);
 
   // Invites
   const [invites, setInvites] = useState<ServerInvite[]>([]);
@@ -95,6 +101,10 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
       setTag(currentServer.tag || "");
       setIsDiscoverable(currentServer.is_discoverable || false);
       setCustomColor(currentServer.banner_color || "#5865F2");
+      setBannerMode(currentServer.banner_gradient_start && currentServer.banner_gradient_end ? "gradient" : "solid");
+      setGradientStart(currentServer.banner_gradient_start || "#5865F2");
+      setGradientEnd(currentServer.banner_gradient_end || "#eb459e");
+      setGradientAngle(currentServer.banner_gradient_angle || 135);
     }
   }, [currentServer]);
 
@@ -355,8 +365,50 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                 <div>
                   <Label className="text-xs font-bold text-gray-300 uppercase mb-2 flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5" />
-                    Banner Color
+                    Banner Style
                   </Label>
+
+                  {/* Mode toggle */}
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={async () => {
+                        setBannerMode("solid");
+                        await updateServer(serverId, { banner_gradient_start: null, banner_gradient_end: null, banner_gradient_angle: null });
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-sm transition-colors",
+                        bannerMode === "solid"
+                          ? "bg-discord-brand text-white"
+                          : "bg-discord-dark text-gray-400 hover:bg-discord-hover"
+                      )}
+                    >
+                      Solid
+                    </button>
+                    <button
+                      onClick={() => setBannerMode("gradient")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-sm transition-colors",
+                        bannerMode === "gradient"
+                          ? "bg-discord-brand text-white"
+                          : "bg-discord-dark text-gray-400 hover:bg-discord-hover"
+                      )}
+                    >
+                      Gradient
+                    </button>
+                  </div>
+
+                  {/* Banner Preview */}
+                  <div
+                    className="w-full h-16 rounded-lg mb-3 border border-gray-700"
+                    style={
+                      bannerMode === "gradient"
+                        ? { background: `linear-gradient(${gradientAngle}deg, ${gradientStart}, ${gradientEnd})` }
+                        : { backgroundColor: bannerColor }
+                    }
+                  />
+
+                  {bannerMode === "solid" && (
+                    <>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {BANNER_PRESETS.map((color) => (
                       <button
@@ -408,6 +460,66 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                       >
                         Apply
                       </Button>
+                    </div>
+                  )}
+                    </>
+                  )}
+
+                  {bannerMode === "gradient" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <Label className="text-[10px] text-gray-500">Start</Label>
+                          <input
+                            type="color"
+                            value={gradientStart}
+                            onChange={(e) => setGradientStart(e.target.value)}
+                            onBlur={async () => {
+                              await updateServer(serverId, {
+                                banner_gradient_start: gradientStart,
+                                banner_gradient_end: gradientEnd,
+                                banner_gradient_angle: gradientAngle,
+                              });
+                            }}
+                            className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
+                          />
+                        </div>
+                        <div className="flex-1 h-6 rounded-full" style={{ background: `linear-gradient(90deg, ${gradientStart}, ${gradientEnd})` }} />
+                        <div>
+                          <Label className="text-[10px] text-gray-500">End</Label>
+                          <input
+                            type="color"
+                            value={gradientEnd}
+                            onChange={(e) => setGradientEnd(e.target.value)}
+                            onBlur={async () => {
+                              await updateServer(serverId, {
+                                banner_gradient_start: gradientStart,
+                                banner_gradient_end: gradientEnd,
+                                banner_gradient_angle: gradientAngle,
+                              });
+                            }}
+                            className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-gray-500">Angle: {gradientAngle}°</Label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="360"
+                          value={gradientAngle}
+                          onChange={(e) => setGradientAngle(Number(e.target.value))}
+                          onMouseUp={async () => {
+                            await updateServer(serverId, {
+                              banner_gradient_start: gradientStart,
+                              banner_gradient_end: gradientEnd,
+                              banner_gradient_angle: gradientAngle,
+                            });
+                          }}
+                          className="w-full accent-discord-brand"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -865,10 +977,10 @@ function RolesTab({ serverId, roles, channels, roleChannelOverrides, setRoleChan
         {roleTab === "channels" && (editingRole || isCreating) && (
           <div className="space-y-2">
             <p className="text-xs text-gray-400 mb-3">
-              Choose which channels members with this role can see. Hidden channels will not appear in their channel list.
+              Manage channel access and permissions per role. Toggle visibility, and control whether members can send messages in each channel.
             </p>
             {isCreating ? (
-              <p className="text-sm text-gray-500 italic">Save the role first, then configure channel visibility.</p>
+              <p className="text-sm text-gray-500 italic">Save the role first, then configure channel permissions.</p>
             ) : editingRole && (
               <>
                 {channels.length === 0 ? (
@@ -889,24 +1001,26 @@ function RolesTab({ serverId, roles, channels, roleChannelOverrides, setRoleChan
                           <span className="text-sm text-white">{channel.name}</span>
                           <span className="text-[10px] text-gray-500 uppercase">{channel.type}</span>
                         </div>
-                        <button
-                          onClick={async () => {
-                            if (isHidden) {
-                              await removeRoleChannelVisibility(editingRole.id, channel.id);
-                            } else {
-                              await setRoleChannelVisibility(editingRole.id, channel.id, true);
-                            }
-                          }}
-                          className={cn(
-                            "p-1.5 rounded-md transition-colors",
-                            isHidden
-                              ? "text-red-400 bg-red-400/10 hover:bg-red-400/20"
-                              : "text-green-400 bg-green-400/10 hover:bg-green-400/20"
-                          )}
-                          title={isHidden ? "Hidden — click to make visible" : "Visible — click to hide"}
-                        >
-                          {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              if (isHidden) {
+                                await removeRoleChannelVisibility(editingRole.id, channel.id);
+                              } else {
+                                await setRoleChannelVisibility(editingRole.id, channel.id, true);
+                              }
+                            }}
+                            className={cn(
+                              "p-1.5 rounded-md transition-colors",
+                              isHidden
+                                ? "text-red-400 bg-red-400/10 hover:bg-red-400/20"
+                                : "text-green-400 bg-green-400/10 hover:bg-green-400/20"
+                            )}
+                            title={isHidden ? "Hidden — click to make visible" : "Visible — click to hide"}
+                          >
+                            {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     );
                   })

@@ -5,6 +5,8 @@ export type BadgeType = "user" | "server";
 export type ChannelType = "text" | "voice";
 export type SendMode = "button_only" | "button_or_enter" | "button_or_shift_enter";
 
+export type NameFont = "default" | "serif" | "mono" | "cursive" | "fantasy" | "rounded";
+
 export interface User {
   id: string;
   email: string;
@@ -30,6 +32,10 @@ export interface User {
   is_messagable: boolean;
   bot_token: string | null;
   last_punishment_seen_at: string | null;
+  name_color: string | null;
+  name_gradient_start: string | null;
+  name_gradient_end: string | null;
+  name_font: NameFont;
   created_at: string;
 }
 
@@ -69,10 +75,14 @@ export interface Server {
   description: string | null;
   icon_url: string | null;
   banner_color: string | null;
+  banner_gradient_start: string | null;
+  banner_gradient_end: string | null;
+  banner_gradient_angle: number | null;
   tag: string | null;
   owner_id: string;
   is_suspended: boolean;
   is_discoverable: boolean;
+  is_verified: boolean;
   suspension_reason: string | null;
   suspension_end: string | null;
   created_at: string;
@@ -275,6 +285,11 @@ export interface UserSettings {
   user_id: string;
   send_mode: SendMode;
   theme: string;
+  notify_mentions: boolean;
+  notify_dms: boolean;
+  notify_friend_requests: boolean;
+  muted_servers: string[];
+  muted_channels: string[];
   created_at: string;
 }
 
@@ -293,3 +308,58 @@ export interface FriendRequest {
   sender?: User;
   receiver?: User;
 }
+
+// Pinned messages
+export interface PinnedMessage {
+  id: string;
+  message_id: string;
+  channel_id: string | null;
+  dm_channel_id: string | null;
+  pinned_by: string;
+  pinned_at: string;
+  message?: Message;
+}
+
+// Channel permission overrides
+export interface ChannelPermissionOverride {
+  id: string;
+  channel_id: string;
+  role_id: string | null;
+  user_id: string | null;
+  allow_permissions: number;
+  deny_permissions: number;
+  created_at: string;
+}
+
+// Reports
+export type ReportType = "user" | "message" | "server";
+export type ReportStatus = "open" | "reviewing" | "resolved" | "dismissed";
+
+export interface Report {
+  id: string;
+  reporter_id: string;
+  report_type: ReportType;
+  target_user_id: string | null;
+  target_message_id: string | null;
+  target_server_id: string | null;
+  reason: string;
+  details: string | null;
+  status: ReportStatus;
+  resolved_by: string | null;
+  resolution_note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  reporter?: User;
+  target_user?: User;
+  target_server?: Server;
+}
+
+// Name font CSS mapping
+export const NAME_FONTS: Record<NameFont, string> = {
+  default: "inherit",
+  serif: "Georgia, 'Times New Roman', serif",
+  mono: "'Fira Code', 'Cascadia Code', monospace",
+  cursive: "'Segoe Script', 'Comic Sans MS', cursive",
+  fantasy: "Impact, fantasy",
+  rounded: "'Nunito', 'Quicksand', sans-serif",
+};

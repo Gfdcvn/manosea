@@ -6,11 +6,12 @@ import { useMessageStore } from "@/stores/message-store";
 import { useServerStore } from "@/stores/server-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatRelativeTime } from "@/lib/utils";
-import { Pencil, Trash2, Copy } from "lucide-react";
+import { Pencil, Trash2, Copy, Pin, PinOff, Flag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { FormattedMessage } from "@/components/chat/formatted-message";
+import { useAuthStore } from "@/stores/auth-store";
 import {
   Dialog,
   DialogContent,
@@ -24,15 +25,22 @@ interface MessageItemProps {
   message: Message;
   showHeader: boolean;
   isOwn: boolean;
+  channelId?: string;
+  isDm?: boolean;
+  isPinned?: boolean;
+  onReport?: (message: Message) => void;
 }
 
-export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
+export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPinned, onReport }: MessageItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content || "");
   const [showActions, setShowActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
+  const pinMessage = useMessageStore((s) => s.pinMessage);
+  const unpinMessage = useMessageStore((s) => s.unpinMessage);
+  const currentUser = useAuthStore((s) => s.user);
   const members = useServerStore((s) => s.members);
   const memberRoles = useServerStore((s) => s.memberRoles);
   const roles = useServerStore((s) => s.roles);
@@ -203,6 +211,22 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
       {/* Action buttons */}
       {showActions && !isEditing && (
         <div className="absolute -top-3 right-2 flex items-center bg-discord-channel border border-gray-700 rounded shadow-lg">
+          {/* Pin/Unpin */}
+          {channelId && currentUser && (
+            <button
+              onClick={async () => {
+                if (isPinned) {
+                  await unpinMessage(message.id);
+                } else {
+                  await pinMessage(message.id, channelId, currentUser.id, isDm);
+                }
+              }}
+              className="p-1.5 hover:bg-discord-hover rounded text-gray-400 hover:text-white"
+              title={isPinned ? "Unpin message" : "Pin message"}
+            >
+              {isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+            </button>
+          )}
           {isOwn && (
             <button
               onClick={() => setIsEditing(true)}
@@ -217,6 +241,16 @@ export function MessageItem({ message, showHeader, isOwn }: MessageItemProps) {
           >
             <Copy className="w-4 h-4" />
           </button>
+          {/* Report */}
+          {!isOwn && onReport && (
+            <button
+              onClick={() => onReport(message)}
+              className="p-1.5 hover:bg-discord-hover rounded text-gray-400 hover:text-orange-400"
+              title="Report message"
+            >
+              <Flag className="w-4 h-4" />
+            </button>
+          )}
           {isOwn && (
             <button
               onClick={() => setShowDeleteConfirm(true)}

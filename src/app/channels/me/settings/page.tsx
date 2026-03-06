@@ -4,13 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore, Theme } from "@/stores/theme-store";
-import { UserBadge, Punishment } from "@/types";
+import { useNotificationStore } from "@/stores/notification-store";
+import { useServerStore } from "@/stores/server-store";
+import { UserBadge, Punishment, NameFont, NAME_FONTS } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -20,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { getStandingInfo } from "@/lib/utils";
-import { X, Upload, Check, Mail, Lock, Trash2, Shield, Award } from "lucide-react";
+import { X, Upload, Check, Mail, Lock, Trash2, Shield, Award, Bell, BellOff } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -81,6 +84,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, settings, updateProfile, updateSettings } = useAuthStore();
   const { theme, setTheme } = useThemeStore();
+  const servers = useServerStore((s) => s.servers);
+  const { mutedServers, toggleMuteServer, setMutedServers, setMutedChannels } = useNotificationStore();
+  const [notifyMentions, setNotifyMentions] = useState(true);
+  const [notifyDms, setNotifyDms] = useState(true);
+  const [notifyFriendRequests, setNotifyFriendRequests] = useState(true);
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [profileColor, setProfileColor] = useState<string | null>(null);
@@ -100,6 +108,11 @@ export default function SettingsPage() {
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [punishments, setPunishments] = useState<Punishment[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [nameColor, setNameColor] = useState<string | null>(null);
+  const [nameGradientStart, setNameGradientStart] = useState<string | null>(null);
+  const [nameGradientEnd, setNameGradientEnd] = useState<string | null>(null);
+  const [nameFont, setNameFont] = useState<NameFont>("default");
+  const [nameColorMode, setNameColorMode] = useState<"none" | "solid" | "gradient">("none");
 
   useEffect(() => {
     if (user) {
@@ -110,9 +123,25 @@ export default function SettingsPage() {
         setCustomColor(user.profile_color);
       }
       setAvatarPreview(user.avatar_url || null);
+      setNameColor(user.name_color || null);
+      setNameGradientStart(user.name_gradient_start || null);
+      setNameGradientEnd(user.name_gradient_end || null);
+      setNameFont((user.name_font as NameFont) || "default");
+      if (user.name_gradient_start && user.name_gradient_end) {
+        setNameColorMode("gradient");
+      } else if (user.name_color) {
+        setNameColorMode("solid");
+      } else {
+        setNameColorMode("none");
+      }
     }
     if (settings) {
       setSendMode(settings.send_mode || "button_or_enter");
+      setNotifyMentions(settings.notify_mentions !== false);
+      setNotifyDms(settings.notify_dms !== false);
+      setNotifyFriendRequests(settings.notify_friend_requests !== false);
+      if (settings.muted_servers) setMutedServers(settings.muted_servers);
+      if (settings.muted_channels) setMutedChannels(settings.muted_channels);
     }
   }, [user, settings]);
 
@@ -214,6 +243,7 @@ export default function SettingsPage() {
             <TabsTrigger value="profile">My Account</TabsTrigger>
             <TabsTrigger value="standing">Standing</TabsTrigger>
             <TabsTrigger value="behaviour">Behaviour</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
@@ -364,6 +394,154 @@ export default function SettingsPage() {
                       className="mt-3 h-2 rounded-full"
                       style={{ backgroundColor: profileColor }}
                     />
+                  )}
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Name Customization */}
+                <div className="mb-4">
+                  <Label className="text-xs font-bold text-gray-300 uppercase mb-2">
+                    Display Name Style
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Customize your display name font and color
+                  </p>
+
+                  {/* Preview */}
+                  <div className="bg-discord-dark rounded-lg p-4 mb-4 flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Preview:</span>
+                    <span
+                      className="text-lg font-bold"
+                      style={{
+                        fontFamily: NAME_FONTS[nameFont] || "inherit",
+                        ...(nameColorMode === "gradient" && nameGradientStart && nameGradientEnd
+                          ? {
+                              background: `linear-gradient(90deg, ${nameGradientStart}, ${nameGradientEnd})`,
+                              WebkitBackgroundClip: "text",
+                              WebkitTextFillColor: "transparent",
+                              backgroundClip: "text",
+                            }
+                          : nameColorMode === "solid" && nameColor
+                          ? { color: nameColor }
+                          : { color: "white" }),
+                      }}
+                    >
+                      {displayName || "Display Name"}
+                    </span>
+                  </div>
+
+                  {/* Font selector */}
+                  <div className="mb-3">
+                    <Label className="text-xs text-gray-400 mb-1">Font</Label>
+                    <select
+                      value={nameFont}
+                      onChange={(e) => {
+                        const val = e.target.value as NameFont;
+                        setNameFont(val);
+                        saveField("name_font", val);
+                      }}
+                      className="w-full bg-discord-dark border border-gray-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:border-discord-brand"
+                    >
+                      <option value="default">Default</option>
+                      <option value="serif">Serif</option>
+                      <option value="mono">Monospace</option>
+                      <option value="cursive">Cursive</option>
+                      <option value="fantasy">Fantasy</option>
+                      <option value="rounded">Rounded</option>
+                    </select>
+                  </div>
+
+                  {/* Color mode */}
+                  <div className="mb-3">
+                    <Label className="text-xs text-gray-400 mb-1">Name Color</Label>
+                    <div className="flex gap-2">
+                      {(["none", "solid", "gradient"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => {
+                            setNameColorMode(mode);
+                            if (mode === "none") {
+                              setNameColor(null);
+                              setNameGradientStart(null);
+                              setNameGradientEnd(null);
+                              updateProfile({ name_color: null, name_gradient_start: null, name_gradient_end: null });
+                              flashSaved();
+                            }
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 rounded-md text-sm capitalize transition-colors",
+                            nameColorMode === mode
+                              ? "bg-discord-brand text-white"
+                              : "bg-discord-dark text-gray-400 hover:bg-discord-hover"
+                          )}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {nameColorMode === "solid" && (
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={nameColor || "#ffffff"}
+                        onChange={(e) => setNameColor(e.target.value)}
+                        onBlur={() => {
+                          saveField("name_color", nameColor);
+                          updateProfile({ name_gradient_start: null, name_gradient_end: null });
+                        }}
+                        className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
+                      />
+                      <Input
+                        value={nameColor || ""}
+                        onChange={(e) => setNameColor(e.target.value)}
+                        onBlur={() => {
+                          if (nameColor && /^#[0-9A-Fa-f]{6}$/.test(nameColor)) {
+                            saveField("name_color", nameColor);
+                            updateProfile({ name_gradient_start: null, name_gradient_end: null });
+                          }
+                        }}
+                        placeholder="#ffffff"
+                        maxLength={7}
+                        className="font-mono text-sm flex-1"
+                      />
+                    </div>
+                  )}
+
+                  {nameColorMode === "gradient" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <Label className="text-[10px] text-gray-500">Start</Label>
+                          <input
+                            type="color"
+                            value={nameGradientStart || "#5865f2"}
+                            onChange={(e) => setNameGradientStart(e.target.value)}
+                            onBlur={() => {
+                              updateProfile({ name_gradient_start: nameGradientStart, name_gradient_end: nameGradientEnd || "#eb459e", name_color: null });
+                              flashSaved();
+                            }}
+                            className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
+                          />
+                        </div>
+                        <div className="flex-1 h-6 rounded-full" style={{ background: `linear-gradient(90deg, ${nameGradientStart || "#5865f2"}, ${nameGradientEnd || "#eb459e"})` }} />
+                        <div>
+                          <Label className="text-[10px] text-gray-500">End</Label>
+                          <input
+                            type="color"
+                            value={nameGradientEnd || "#eb459e"}
+                            onChange={(e) => setNameGradientEnd(e.target.value)}
+                            onBlur={() => {
+                              updateProfile({ name_gradient_start: nameGradientStart || "#5865f2", name_gradient_end: nameGradientEnd, name_color: null });
+                              flashSaved();
+                            }}
+                            className="w-10 h-10 rounded-lg border-2 border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0.5"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -597,6 +775,99 @@ export default function SettingsPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Notifications Tab */}
+          <TabsContent value="notifications">
+            <div className="bg-discord-darker rounded-lg p-6 space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-1">Notification Settings</h2>
+                <p className="text-sm text-gray-400">Control what notifications you receive</p>
+              </div>
+
+              {/* Toggles */}
+              <div className="space-y-4">
+                {[
+                  { label: "Mentions", desc: "@mentions from other users", value: notifyMentions, key: "notify_mentions", setter: setNotifyMentions },
+                  { label: "Direct Messages", desc: "New direct messages", value: notifyDms, key: "notify_dms", setter: setNotifyDms },
+                  { label: "Friend Requests", desc: "Incoming friend requests", value: notifyFriendRequests, key: "notify_friend_requests", setter: setNotifyFriendRequests },
+                ].map((opt) => (
+                  <div key={opt.key} className="flex items-center justify-between p-4 bg-discord-dark rounded-lg border border-gray-800">
+                    <div className="flex items-center gap-3">
+                      {opt.value ? <Bell className="w-4 h-4 text-discord-brand" /> : <BellOff className="w-4 h-4 text-gray-500" />}
+                      <div>
+                        <p className="text-sm font-medium text-white">{opt.label}</p>
+                        <p className="text-xs text-gray-500">{opt.desc}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const next = !opt.value;
+                        opt.setter(next);
+                        await updateSettings({ [opt.key]: next });
+                        flashSaved();
+                      }}
+                      className={cn(
+                        "w-12 h-6 rounded-full transition-colors relative",
+                        opt.value ? "bg-discord-brand" : "bg-gray-600"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform",
+                          opt.value ? "translate-x-6" : "translate-x-0.5"
+                        )}
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Muted Servers */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-300 uppercase mb-3">Muted Servers</h3>
+                {servers.length === 0 ? (
+                  <p className="text-gray-500 text-sm">You are not in any servers</p>
+                ) : (
+                  <div className="space-y-2">
+                    {servers.map((server) => {
+                      const isMuted = mutedServers.has(server.id);
+                      return (
+                        <div key={server.id} className="flex items-center justify-between p-3 bg-discord-dark rounded-lg border border-gray-800">
+                          <div className="flex items-center gap-2">
+                            {server.icon_url ? (
+                              <img src={server.icon_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-discord-brand flex items-center justify-center text-[10px] font-bold text-white">
+                                {server.name.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-sm text-white">{server.name}</span>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              toggleMuteServer(server.id);
+                              const next = new Set(mutedServers);
+                              if (next.has(server.id)) next.delete(server.id);
+                              else next.add(server.id);
+                              await updateSettings({ muted_servers: Array.from(next) });
+                            }}
+                            className={cn(
+                              "px-3 py-1 rounded text-xs transition-colors",
+                              isMuted
+                                ? "bg-gray-600 text-gray-300 hover:bg-gray-500"
+                                : "bg-discord-dark text-gray-500 hover:bg-discord-hover border border-gray-700"
+                            )}
+                          >
+                            {isMuted ? "Unmute" : "Mute"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>

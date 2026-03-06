@@ -261,6 +261,9 @@ export const useServerStore = create<ServerState>((set, get) => ({
     if (data.tag !== undefined) updateData.tag = data.tag;
     if (data.icon_url !== undefined) updateData.icon_url = data.icon_url;
     if (data.is_discoverable !== undefined) updateData.is_discoverable = data.is_discoverable;
+    if (data.banner_gradient_start !== undefined) updateData.banner_gradient_start = data.banner_gradient_start;
+    if (data.banner_gradient_end !== undefined) updateData.banner_gradient_end = data.banner_gradient_end;
+    if (data.banner_gradient_angle !== undefined) updateData.banner_gradient_angle = data.banner_gradient_angle;
     await supabase.from("servers").update(updateData).eq("id", serverId);
     await get().fetchServers();
     // Update currentServer in local state
