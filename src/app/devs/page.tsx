@@ -17,6 +17,8 @@ import {
   Circle,
   Cpu,
   UserPlus,
+  Globe,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,6 +201,21 @@ export default function DevsPage() {
                       <Cpu className="w-3.5 h-3.5" />
                       Workflow Editor
                     </Button>
+                    <button
+                      onClick={() => updateBot(bot.id, { is_public: !bot.is_public })}
+                      className={`p-2 rounded-lg transition-colors ${
+                        bot.is_public
+                          ? "text-discord-green hover:bg-discord-green/10"
+                          : "text-discord-muted hover:bg-discord-hover"
+                      }`}
+                      title={bot.is_public ? "Public (visible in Explore)" : "Private (click to make public)"}
+                    >
+                      {bot.is_public ? (
+                        <Globe className="w-4 h-4" />
+                      ) : (
+                        <Lock className="w-4 h-4" />
+                      )}
+                    </button>
                     <button
                       onClick={() => { setInvitedServerIds(new Set()); setShowInvite(bot); }}
                       className="p-2 rounded-lg text-discord-muted hover:text-discord-brand hover:bg-discord-brand/10 transition-colors"

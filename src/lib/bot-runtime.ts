@@ -69,7 +69,15 @@ async function executeNode(
         if (channelId && content) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
-            await supabase.from("messages").insert({ channel_id: channelId, user_id: bot.user_id, content });
+            // Detect if this is a DM context (no serverId means DM)
+            const isDm = !ctx.serverId;
+            const msgData: Record<string, string> = { author_id: bot.user_id, content };
+            if (isDm) {
+              msgData.dm_channel_id = channelId;
+            } else {
+              msgData.channel_id = channelId;
+            }
+            await supabase.from("messages").insert(msgData);
           }
         }
         break;
@@ -79,12 +87,18 @@ async function executeNode(
         if (ctx.channelId && content) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
-            await supabase.from("messages").insert({
-              channel_id: ctx.channelId,
-              user_id: bot.user_id,
+            const isDm = !ctx.serverId;
+            const msgData: Record<string, string | null> = {
+              author_id: bot.user_id,
               content,
               reply_to_id: ctx.messageId || null,
-            });
+            };
+            if (isDm) {
+              msgData.dm_channel_id = ctx.channelId;
+            } else {
+              msgData.channel_id = ctx.channelId;
+            }
+            await supabase.from("messages").insert(msgData);
           }
         }
         break;
@@ -110,7 +124,7 @@ async function executeNode(
               dmChannelId = newDm?.id;
             }
             if (dmChannelId) {
-              await supabase.from("dm_messages").insert({ dm_channel_id: dmChannelId, sender_id: bot.user_id, content });
+              await supabase.from("messages").insert({ dm_channel_id: dmChannelId, author_id: bot.user_id, content });
             }
           }
         }
@@ -552,6 +566,62 @@ export async function processMessageEvent(
     await triggerWorkflow(wf, "trigger_on_keyword", ctx);
 
     // Check command triggers
+    await triggerWorkflow(wf, "trigger_on_command", ctx);
+  }
+}
+
+// Process DM events — find bots in the DM channel and trigger their workflows
+export async function processDmEvent(
+  dmChannelId: string,
+  senderId: string,
+  messageId: string,
+  messageContent: string
+) {
+  const supabase = createClient();
+
+  // Get DM channel to find participants
+  const { data: dmChannel } = await supabase
+    .from("dm_channels")
+    .select("user1_id, user2_id")
+    .eq("id", dmChannelId)
+    .single();
+
+  if (!dmChannel) return;
+
+  // Determine which participant (if any) is a bot
+  const otherUserId = dmChannel.user1_id === senderId ? dmChannel.user2_id : dmChannel.user1_id;
+
+  // Find bot by user_id
+  const { data: bot } = await supabase
+    .from("bots")
+    .select("*")
+    .eq("user_id", otherUserId)
+    .eq("status", "online")
+    .single();
+
+  if (!bot) return;
+
+  const { data: workflows } = await supabase
+    .from("bot_workflows")
+    .select("*")
+    .eq("bot_id", bot.id)
+    .eq("is_active", true);
+
+  if (!workflows) return;
+
+  const ctx = {
+    botId: bot.id,
+    channelId: dmChannelId,
+    userId: senderId,
+    messageId,
+    messageContent,
+  };
+
+  for (const wf of workflows as BotWorkflow[]) {
+    await triggerWorkflow(wf, "trigger_on_dm", ctx);
+
+    // Also check keyword and command triggers in DMs
+    await triggerWorkflow(wf, "trigger_on_keyword", ctx);
     await triggerWorkflow(wf, "trigger_on_command", ctx);
   }
 }

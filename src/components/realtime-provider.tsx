@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMessageStore } from "@/stores/message-store";
 import { useNotificationStore } from "@/stores/notification-store";
+import { processMessageEvent, processDmEvent } from "@/lib/bot-runtime";
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -80,6 +81,64 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
                 if (channelData) {
                   useNotificationStore.getState().addMention(channelData.server_id, data.channel_id);
+                }
+              }
+            }
+
+            // === Bot runtime: trigger bots on new messages ===
+            if (data.author_id) {
+              // Check if author is a bot — bots should not trigger other bots (avoid loops)
+              const { data: authorUser } = await supabase
+                .from("users")
+                .select("is_bot")
+                .eq("id", data.author_id)
+                .single();
+
+              if (!authorUser?.is_bot) {
+                if (data.channel_id) {
+                  // Server message — find bots that are members of this server
+                  const { data: channelData } = await supabase
+                    .from("channels")
+                    .select("server_id")
+                    .eq("id", data.channel_id)
+                    .single();
+
+                  if (channelData?.server_id) {
+                    const { data: botMembers } = await supabase
+                      .from("server_members")
+                      .select("user_id")
+                      .eq("server_id", channelData.server_id);
+
+                    if (botMembers) {
+                      // Find bots among server members
+                      const { data: bots } = await supabase
+                        .from("bots")
+                        .select("id")
+                        .in("user_id", botMembers.map((m) => m.user_id))
+                        .eq("status", "online");
+
+                      if (bots) {
+                        for (const bot of bots) {
+                          processMessageEvent(
+                            bot.id,
+                            channelData.server_id,
+                            data.channel_id,
+                            data.author_id,
+                            data.id,
+                            data.content || ""
+                          ).catch(() => {});
+                        }
+                      }
+                    }
+                  }
+                } else if (data.dm_channel_id) {
+                  // DM message — find if the other party is a bot
+                  processDmEvent(
+                    data.dm_channel_id,
+                    data.author_id,
+                    data.id,
+                    data.content || ""
+                  ).catch(() => {});
                 }
               }
             }
