@@ -67,51 +67,23 @@ export const useBotStore = create<BotStore>((set, get) => ({
       if ((count || 0) >= 5) return null;
     }
 
-    // Create a bot user account
+    // Use server-side RPC to create bot (bypasses RLS on users table)
     const username = `bot_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now().toString(36)}`;
-    const { data: botUser, error: userErr } = await supabase
-      .from("users")
-      .insert({
-        id: crypto.randomUUID(),
-        email: `${username}@bot.local`,
-        username,
-        display_name: name,
-        status: "online",
-        role: "user",
-        is_bot: true,
-        standing_level: 5,
-      })
-      .select()
-      .single();
-
-    if (userErr || !botUser) return null;
-
-    // Create the bot record
-    const { data: bot, error: botErr } = await supabase
-      .from("bots")
-      .insert({
-        user_id: botUser.id,
-        owner_id: ownerId,
-        name,
-        description: description || null,
-        status: "offline",
-      })
-      .select()
-      .single();
-
-    if (botErr || !bot) return null;
-
-    // Create default workflow
-    await supabase.from("bot_workflows").insert({
-      bot_id: bot.id,
-      name: "Main Workflow",
-      nodes: [],
-      connections: [],
-      variables: {},
+    const { data, error } = await supabase.rpc("create_bot", {
+      p_owner_id: ownerId,
+      p_name: name,
+      p_description: description || "",
+      p_username: username,
     });
 
-    set({ bots: [bot as Bot, ...get().bots] });
-    return bot as Bot;
+    if (error || !data) {
+      console.error("Bot creation failed:", error);
+      return null;
+    }
+
+    const bot = data as Bot;
+    set({ bots: [bot, ...get().bots] });
+    return bot;
   },
 
   deleteBot: async (botId) => {
