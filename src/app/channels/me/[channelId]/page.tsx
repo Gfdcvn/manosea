@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMessageStore } from "@/stores/message-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useNotificationStore } from "@/stores/notification-store";
 import { createClient } from "@/lib/supabase/client";
 import { ChatArea } from "@/components/chat/chat-area";
 import { User } from "@/types";
@@ -22,6 +23,7 @@ export default function DmChannelPage() {
 
     // Mark as read when opening
     markDmAsRead(channelId);
+    useNotificationStore.getState().clearChannelMention("dm", channelId);
 
     const load = async () => {
       setLoading(true);

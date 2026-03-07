@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { BotNode, BotConnection, NodeType, BotWorkflow } from "@/types";
-import { NODE_DEF_MAP, NODE_DEFS, NODE_CATEGORIES } from "./node-defs";
+import { NODE_DEF_MAP, NODE_DEFS, NODE_CATEGORIES, VarEmit } from "./node-defs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,6 +12,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Zap,
 } from "lucide-react";
 
 // ====== HELPERS ======
@@ -19,6 +20,42 @@ import {
 let nextId = 1;
 function uid() {
   return `n_${Date.now()}_${nextId++}`;
+}
+
+/** Walk upstream from a node to collect all emitted variables from connected ancestors */
+function getAvailableVariables(
+  nodeId: string,
+  nodes: BotNode[],
+  connections: BotConnection[]
+): VarEmit[] {
+  const visited = new Set<string>();
+  const vars: VarEmit[] = [];
+  const seen = new Set<string>();
+
+  function walk(nId: string) {
+    if (visited.has(nId)) return;
+    visited.add(nId);
+    // Find all connections where this node is the target
+    const incoming = connections.filter((c) => c.targetNodeId === nId);
+    for (const conn of incoming) {
+      const sourceNode = nodes.find((n) => n.id === conn.sourceNodeId);
+      if (!sourceNode) continue;
+      const def = NODE_DEF_MAP[sourceNode.type];
+      if (def) {
+        for (const v of def.emits) {
+          if (!seen.has(v.name)) {
+            seen.add(v.name);
+            vars.push(v);
+          }
+        }
+      }
+      // Continue walking upstream
+      walk(conn.sourceNodeId);
+    }
+  }
+
+  walk(nodeId);
+  return vars;
 }
 
 function portPos(
@@ -406,6 +443,36 @@ export function NodeEditorCanvas({ workflow, onSave }: NodeEditorCanvasProps) {
                         <span className="text-[10px] text-discord-muted uppercase">{p}</span>
                       </div>
                     ))}
+                    {/* Available variables from upstream */}
+                    {(() => {
+                      const vars = getAvailableVariables(node.id, nodes, connections);
+                      if (vars.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-0.5 mt-1 mb-1">
+                          {vars.slice(0, 4).map((v) => (
+                            <span key={v.name} className="text-[8px] px-1 py-0.5 rounded bg-violet-500/20 text-violet-300 font-mono truncate max-w-[90px]" title={v.description}>
+                              {v.name}
+                            </span>
+                          ))}
+                          {vars.length > 4 && (
+                            <span className="text-[8px] px-1 py-0.5 rounded bg-violet-500/10 text-violet-400">+{vars.length - 4}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Emits badges */}
+                    {def.emits.length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 mt-1">
+                        {def.emits.slice(0, 3).map((v) => (
+                          <span key={v.name} className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono truncate max-w-[90px]" title={`Emits: ${v.description}`}>
+                            ↑{v.name}
+                          </span>
+                        ))}
+                        {def.emits.length > 3 && (
+                          <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400">+{def.emits.length - 3}</span>
+                        )}
+                      </div>
+                    )}
                     {def.outputs.map((p) => (
                       <div key={p} className="flex items-center gap-2 justify-end -mr-[18px]">
                         <span className="text-[10px] text-discord-muted uppercase">{p}</span>
@@ -484,6 +551,52 @@ export function NodeEditorCanvas({ workflow, onSave }: NodeEditorCanvasProps) {
                   )}
                 </div>
               ))}
+
+              {/* Available Variables from upstream */}
+              {(() => {
+                const availVars = getAvailableVariables(selectedNode.id, nodes, connections);
+                if (availVars.length === 0) return null;
+                return (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-discord-muted tracking-wider flex items-center gap-1 mb-1.5">
+                      <Zap className="w-3 h-3" />
+                      Available Variables
+                    </label>
+                    <p className="text-[10px] text-discord-muted mb-2">Click to copy. Use as <span className="font-mono text-violet-400">{"{{name}}"}</span> in fields.</p>
+                    <div className="flex flex-wrap gap-1">
+                      {availVars.map((v) => (
+                        <button
+                          key={v.name}
+                          onClick={() => navigator.clipboard.writeText(`{{${v.name}}}`)}
+                          className="text-[11px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 transition-colors font-mono cursor-pointer"
+                          title={`${v.description} — Click to copy {{${v.name}}}`}
+                        >
+                          {v.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Emitted Variables */}
+              {selectedDef.emits.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-discord-muted tracking-wider flex items-center gap-1 mb-1.5">
+                    <Zap className="w-3 h-3 text-emerald-400" />
+                    Emits Variables
+                  </label>
+                  <p className="text-[10px] text-discord-muted mb-2">Downstream nodes can use these.</p>
+                  <div className="space-y-1">
+                    {selectedDef.emits.map((v) => (
+                      <div key={v.name} className="flex items-center gap-2 text-xs">
+                        <span className="font-mono text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded">{v.name}</span>
+                        <span className="text-discord-muted text-[10px] truncate">{v.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Delete button */}
               <button

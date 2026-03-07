@@ -37,6 +37,7 @@ interface BotStore {
   clearLogs: (botId: string) => Promise<void>;
 
   toggleBotStatus: (botId: string) => Promise<void>;
+  inviteBotToServer: (botId: string, serverId: string) => Promise<boolean>;
 }
 
 export const useBotStore = create<BotStore>((set, get) => ({
@@ -67,22 +68,71 @@ export const useBotStore = create<BotStore>((set, get) => ({
       if ((count || 0) >= 5) return null;
     }
 
-    // Use server-side RPC to create bot (bypasses RLS on users table)
     const username = `bot_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now().toString(36)}`;
-    const { data, error } = await supabase.rpc("create_bot", {
+
+    // Try RPC first, fall back to direct inserts
+    let bot: Bot | null = null;
+    const { data: rpcData, error: rpcError } = await supabase.rpc("create_bot", {
       p_owner_id: ownerId,
       p_name: name,
       p_description: description || "",
       p_username: username,
     });
 
-    if (error || !data) {
-      console.error("Bot creation failed:", error);
-      return null;
+    if (!rpcError && rpcData) {
+      bot = rpcData as Bot;
+    } else {
+      // Fallback: direct inserts (requires INSERT RLS on users for is_bot=true)
+      const botUserId = crypto.randomUUID();
+      const { error: userError } = await supabase.from("users").insert({
+        id: botUserId,
+        email: `${username}@bot.ricord`,
+        username,
+        display_name: name,
+        status: "online",
+        role: "user",
+        is_bot: true,
+        standing_level: 0,
+      });
+
+      if (userError) {
+        console.error("Bot user creation failed:", userError);
+        return null;
+      }
+
+      const { data: botData, error: botError } = await supabase
+        .from("bots")
+        .insert({
+          user_id: botUserId,
+          owner_id: ownerId,
+          name,
+          description: description || null,
+        })
+        .select()
+        .single();
+
+      if (botError || !botData) {
+        // Rollback the user
+        await supabase.from("users").delete().eq("id", botUserId);
+        console.error("Bot creation failed:", botError);
+        return null;
+      }
+
+      // Create default workflow
+      await supabase.from("bot_workflows").insert({
+        bot_id: botData.id,
+        name: "Main Workflow",
+        nodes: [],
+        connections: [],
+        variables: {},
+      });
+
+      bot = botData as Bot;
     }
 
-    const bot = data as Bot;
-    set({ bots: [bot, ...get().bots] });
+    if (bot) {
+      set({ bots: [bot, ...get().bots] });
+    }
     return bot;
   },
 
@@ -186,5 +236,28 @@ export const useBotStore = create<BotStore>((set, get) => ({
     if (!bot) return;
     const newStatus = bot.status === "online" ? "offline" : "online";
     await get().updateBot(botId, { status: newStatus });
+  },
+
+  inviteBotToServer: async (botId, serverId) => {
+    const supabase = createClient();
+    const bot = get().bots.find((b) => b.id === botId);
+    if (!bot) return false;
+
+    // Check if bot is already a member
+    const { data: existing } = await supabase
+      .from("server_members")
+      .select("id")
+      .eq("server_id", serverId)
+      .eq("user_id", bot.user_id)
+      .maybeSingle();
+
+    if (existing) return true; // already in server
+
+    const { error } = await supabase.from("server_members").insert({
+      server_id: serverId,
+      user_id: bot.user_id,
+    });
+
+    return !error;
   },
 }));

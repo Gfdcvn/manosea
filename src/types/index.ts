@@ -464,6 +464,17 @@ export type NodeType =
   | "action_loop"               // repeat actions N times
   | "action_send_button"        // send a message with buttons
   | "action_counter"            // increment/decrement a counter
+  // New nodes (10)
+  | "action_send_typing"        // show typing indicator
+  | "action_wait_for_message"   // wait for next user message
+  | "action_regex_match"        // regex test on input
+  | "action_switch"             // multi-branch switch/case
+  | "action_foreach"            // iterate over a list
+  | "action_store_list"         // manage a list (push/pop/clear)
+  | "action_cooldown"           // rate-limit per user
+  | "action_api_call"           // API call with headers/body
+  | "action_embed_builder"      // build rich embed with fields
+  | "action_poll"               // create a poll
   ;
 
 export interface BotNodePosition {
@@ -496,4 +507,30 @@ export interface BotWorkflow {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// ====== Reaction Roles ======
+
+export interface ReactionRole {
+  id: string;
+  server_id: string;
+  channel_id: string;
+  message_id: string;
+  emoji: string;
+  role_id: string;
+  role?: ServerRole;
+  created_at: string;
+}
+
+// ====== Scheduled Messages ======
+
+export interface ScheduledMessage {
+  id: string;
+  channel_id: string;
+  dm_channel_id: string | null;
+  user_id: string;
+  content: string;
+  scheduled_at: string;
+  sent: boolean;
+  created_at: string;
 }

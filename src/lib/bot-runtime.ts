@@ -34,10 +34,12 @@ async function addLog(botId: string, level: string, message: string) {
 
 function interpolate(template: string, ctx: Context): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    if (key === "user") return ctx.userId || "";
-    if (key === "channel") return ctx.channelId || "";
-    if (key === "message") return ctx.messageContent || "";
-    if (key === "server") return ctx.serverId || "";
+    if (key === "user" || key === "user_id") return ctx.userId || "";
+    if (key === "channel" || key === "channel_id") return ctx.channelId || "";
+    if (key === "message" || key === "content") return ctx.messageContent || "";
+    if (key === "server" || key === "server_id") return ctx.serverId || "";
+    if (key === "message_id") return ctx.messageId || "";
+    if (key === "timestamp") return new Date().toISOString();
     return ctx.variables[key] || "";
   });
 }
@@ -224,6 +226,8 @@ async function executeNode(
           case ">": result = parseFloat(variable) > parseFloat(value); break;
           case "<": result = parseFloat(variable) < parseFloat(value); break;
           case "contains": result = variable.includes(value); break;
+          case "starts_with": result = variable.startsWith(value); break;
+          case "ends_with": result = variable.endsWith(value); break;
         }
         nextPort = result ? "true" : "false";
         break;
@@ -308,6 +312,152 @@ async function executeNode(
       }
       case "action_json_parse": {
         await addLog(ctx.botId, "warn", "JSON parse requires server-side execution");
+        break;
+      }
+
+      // ===== New Nodes =====
+      case "action_send_typing": {
+        const duration = Math.min(parseInt((node.data.duration as string) || "3", 10), 10);
+        await addLog(ctx.botId, "info", `Typing indicator for ${duration}s in ${ctx.channelId}`);
+        await new Promise((r) => setTimeout(r, duration * 1000));
+        break;
+      }
+      case "action_switch": {
+        const switchVar = interpolate((node.data.variable as string) || "", ctx);
+        const case1 = interpolate((node.data.case_1 as string) || "", ctx);
+        const case2 = interpolate((node.data.case_2 as string) || "", ctx);
+        const case3 = interpolate((node.data.case_3 as string) || "", ctx);
+        if (switchVar === case1) { nextPort = "case_1"; ctx.variables["matched_case"] = "1"; }
+        else if (switchVar === case2) { nextPort = "case_2"; ctx.variables["matched_case"] = "2"; }
+        else if (switchVar === case3) { nextPort = "case_3"; ctx.variables["matched_case"] = "3"; }
+        else { nextPort = "default"; ctx.variables["matched_case"] = "default"; }
+        break;
+      }
+      case "action_foreach": {
+        const listVar = interpolate((node.data.list_var as string) || "", ctx);
+        const separator = (node.data.separator as string) || ",";
+        const items = listVar.split(separator).map((s) => s.trim()).filter(Boolean);
+        const bodyNodes = getConnectedNodes(node.id, "body", workflow.connections, workflow.nodes);
+        for (let i = 0; i < Math.min(items.length, 100); i++) {
+          ctx.variables["item"] = items[i];
+          ctx.variables["index"] = String(i);
+          for (const bodyNode of bodyNodes) {
+            await executeNode(bodyNode, workflow, ctx, depth + 1);
+          }
+        }
+        nextPort = "done";
+        break;
+      }
+      case "action_cooldown": {
+        const seconds = parseInt((node.data.seconds as string) || "30", 10);
+        const per = (node.data.per as string) || "user";
+        const key = `cooldown_${node.id}_${per === "user" ? ctx.userId : per === "channel" ? ctx.channelId : "global"}`;
+        const { data: mem } = await supabase.from("bot_memory").select("value").eq("bot_id", ctx.botId).eq("key", key).single();
+        const lastUsed = mem ? parseInt(mem.value, 10) : 0;
+        const now = Date.now();
+        const remaining = Math.max(0, seconds - Math.floor((now - lastUsed) / 1000));
+        ctx.variables["remaining"] = String(remaining);
+        if (remaining > 0) {
+          nextPort = "blocked";
+        } else {
+          await supabase.from("bot_memory").upsert({ bot_id: ctx.botId, key, value: String(now) }, { onConflict: "bot_id,key" });
+          nextPort = "allowed";
+        }
+        break;
+      }
+      case "action_wait_for_message": {
+        // Simplified: log that we're waiting — real implementation would need pub/sub
+        await addLog(ctx.botId, "info", "Wait for message: requires realtime subscription");
+        ctx.variables["response_content"] = "";
+        ctx.variables["response_user"] = "";
+        nextPort = "timeout";
+        break;
+      }
+      case "action_regex_match": {
+        const input = interpolate((node.data.input as string) || "", ctx);
+        const pattern = (node.data.pattern as string) || "";
+        const flags = (node.data.flags as string) || "";
+        try {
+          const re = new RegExp(pattern, flags);
+          const m = re.exec(input);
+          if (m) {
+            ctx.variables["match"] = m[0];
+            if (m[1]) ctx.variables["group_1"] = m[1];
+            if (m[2]) ctx.variables["group_2"] = m[2];
+            nextPort = "match";
+          } else {
+            ctx.variables["match"] = "";
+            nextPort = "no_match";
+          }
+        } catch {
+          await addLog(ctx.botId, "error", `Invalid regex: ${pattern}`);
+          nextPort = "no_match";
+        }
+        break;
+      }
+      case "action_store_list": {
+        const listName = (node.data.list_name as string) || "list";
+        const operation = (node.data.operation as string) || "push";
+        const item = interpolate((node.data.item as string) || "", ctx);
+        // Load list from memory
+        const { data: listMem } = await supabase.from("bot_memory").select("value").eq("bot_id", ctx.botId).eq("key", listName).single();
+        let items: string[] = [];
+        try { items = JSON.parse(listMem?.value || "[]"); } catch { items = []; }
+        let popped = "";
+        switch (operation) {
+          case "push": items.push(item); break;
+          case "pop": popped = items.pop() || ""; break;
+          case "shift": popped = items.shift() || ""; break;
+          case "clear": items = []; break;
+          case "includes": ctx.variables["list_includes"] = String(items.includes(item)); break;
+        }
+        ctx.variables["list_length"] = String(items.length);
+        ctx.variables["list_value"] = popped;
+        await supabase.from("bot_memory").upsert({ bot_id: ctx.botId, key: listName, value: JSON.stringify(items) }, { onConflict: "bot_id,key" });
+        break;
+      }
+      case "action_api_call": {
+        // Disabled for security in client-side — requires server-side proxy
+        await addLog(ctx.botId, "warn", "API calls require server-side execution");
+        ctx.variables["response_body"] = "";
+        ctx.variables["status_code"] = "0";
+        nextPort = "error";
+        break;
+      }
+      case "action_embed_builder": {
+        // Build embed and send as formatted message
+        const title = interpolate((node.data.title as string) || "", ctx);
+        const desc = interpolate((node.data.description as string) || "", ctx);
+        const footer = interpolate((node.data.footer as string) || "", ctx);
+        const f1n = interpolate((node.data.field_1_name as string) || "", ctx);
+        const f1v = interpolate((node.data.field_1_value as string) || "", ctx);
+        const f2n = interpolate((node.data.field_2_name as string) || "", ctx);
+        const f2v = interpolate((node.data.field_2_value as string) || "", ctx);
+        let content = "";
+        if (title) content += `**${title}**\n`;
+        if (desc) content += `${desc}\n`;
+        if (f1n && f1v) content += `\n**${f1n}:** ${f1v}`;
+        if (f2n && f2v) content += `\n**${f2n}:** ${f2v}`;
+        if (footer) content += `\n\n_${footer}_`;
+        if (ctx.channelId && content) {
+          const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
+          if (bot) {
+            await supabase.from("messages").insert({ channel_id: ctx.channelId, user_id: bot.user_id, content });
+          }
+        }
+        break;
+      }
+      case "action_poll": {
+        const question = interpolate((node.data.question as string) || "", ctx);
+        const options = ((node.data.options as string) || "").split("\n").filter(Boolean);
+        const content = `📊 **${question}**\n${options.map((o, i) => `${["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"][i] || `${i+1}.`} ${o}`).join("\n")}`;
+        if (ctx.channelId && question) {
+          const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
+          if (bot) {
+            const { data: msg } = await supabase.from("messages").insert({ channel_id: ctx.channelId, user_id: bot.user_id, content }).select("id").single();
+            if (msg) ctx.variables["poll_id"] = msg.id;
+          }
+        }
         break;
       }
 

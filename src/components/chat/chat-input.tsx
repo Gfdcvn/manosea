@@ -5,7 +5,7 @@ import { useMessageStore } from "@/stores/message-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useServerStore } from "@/stores/server-store";
 import { createClient } from "@/lib/supabase/client";
-import { Smile, PlusCircle, Send } from "lucide-react";
+import { Smile, PlusCircle, Send, Clock, Bold, Italic, Strikethrough, Code, Quote, Eye } from "lucide-react";
 import { EmojiPicker } from "@/components/chat/emoji-picker";
 import { FileUpload } from "@/components/chat/file-upload";
 import { MAX_FILE_SIZE } from "@/lib/utils";
@@ -22,6 +22,10 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [formatBar, setFormatBar] = useState<{ top: number; left: number } | null>(null);
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -266,6 +270,42 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
     setShowFileUpload(false);
   };
 
+  const wrapSelection = useCallback((prefix: string, suffix: string) => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end) return;
+    const selected = content.slice(start, end);
+    const newContent = content.slice(0, start) + prefix + selected + suffix + content.slice(end);
+    setContent(newContent);
+    setFormatBar(null);
+    setTimeout(() => {
+      textarea.selectionStart = start + prefix.length;
+      textarea.selectionEnd = end + prefix.length;
+      textarea.focus();
+    }, 0);
+  }, [content]);
+
+  const handleSelectionChange = useCallback(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end || document.activeElement !== textarea) {
+      setFormatBar(null);
+      return;
+    }
+    // Position the bar above the textarea
+    const rect = textarea.getBoundingClientRect();
+    const parentRect = textarea.parentElement?.parentElement?.getBoundingClientRect();
+    if (!parentRect) return;
+    setFormatBar({
+      top: rect.top - parentRect.top - 40,
+      left: Math.min(rect.width / 2, 200),
+    });
+  }, []);
+
   return (
     <div className="px-4 pb-6 pt-1 relative">
       {/* Chat blocked overlay */}
@@ -331,6 +371,34 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
         </div>
       )}
 
+      {/* Formatting bar */}
+      {formatBar && (
+        <div
+          className="absolute z-50 flex items-center gap-0.5 bg-discord-darker border border-gray-600 rounded-lg shadow-xl px-1 py-0.5"
+          style={{ bottom: "calc(100% + 4px)", left: `${formatBar.left}px`, transform: "translateX(-50%)" }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <button onClick={() => wrapSelection("**", "**")} className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-hover rounded transition-colors" title="Bold">
+            <Bold className="w-4 h-4" />
+          </button>
+          <button onClick={() => wrapSelection("*", "*")} className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-hover rounded transition-colors" title="Italic">
+            <Italic className="w-4 h-4" />
+          </button>
+          <button onClick={() => wrapSelection("~~", "~~")} className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-hover rounded transition-colors" title="Strikethrough">
+            <Strikethrough className="w-4 h-4" />
+          </button>
+          <button onClick={() => wrapSelection("`", "`")} className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-hover rounded transition-colors" title="Code">
+            <Code className="w-4 h-4" />
+          </button>
+          <button onClick={() => wrapSelection("||", "||")} className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-hover rounded transition-colors" title="Spoiler">
+            <Eye className="w-4 h-4" />
+          </button>
+          <button onClick={() => wrapSelection("> ", "")} className="p-1.5 text-gray-400 hover:text-white hover:bg-discord-hover rounded transition-colors" title="Quote">
+            <Quote className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-0 bg-discord-input rounded-lg">
         {/* Attachment button */}
         <button
@@ -347,6 +415,8 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
           onChange={handleChange}
           onClick={handleClick}
           onKeyDown={handleKeyDown}
+          onSelect={handleSelectionChange}
+          onMouseUp={handleSelectionChange}
           placeholder={`Message ${isDm ? "@" : "#"}${channelName}`}
           rows={1}
           className="flex-1 bg-transparent py-3 text-sm text-gray-200 placeholder:text-discord-muted outline-none resize-none max-h-48 min-h-[44px]"
@@ -366,6 +436,22 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
           <Smile className="w-5 h-5" />
         </button>
 
+        {/* Schedule button */}
+        <button
+          onClick={() => {
+            if (!content.trim()) return;
+            const now = new Date();
+            now.setHours(now.getHours() + 1);
+            setScheduleDate(now.toISOString().slice(0, 10));
+            setScheduleTime(now.toTimeString().slice(0, 5));
+            setShowSchedule(!showSchedule);
+          }}
+          className="p-3 text-gray-400 hover:text-white transition-colors shrink-0"
+          title="Schedule message"
+        >
+          <Clock className="w-5 h-5" />
+        </button>
+
         {/* Send button */}
         <button
           onClick={handleSend}
@@ -375,6 +461,63 @@ export function ChatInput({ channelId, isDm = false, channelName }: ChatInputPro
           <Send className="w-5 h-5" />
         </button>
       </div>
+
+      {/* Schedule dialog */}
+      {showSchedule && (
+        <div className="mt-2 p-3 bg-discord-darker border border-gray-700 rounded-lg">
+          <p className="text-sm font-semibold text-white mb-2">Schedule Message</p>
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="date"
+              value={scheduleDate}
+              onChange={(e) => setScheduleDate(e.target.value)}
+              className="bg-discord-input border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 outline-none focus:border-discord-brand"
+            />
+            <input
+              type="time"
+              value={scheduleTime}
+              onChange={(e) => setScheduleTime(e.target.value)}
+              className="bg-discord-input border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 outline-none focus:border-discord-brand"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (!content.trim() || !scheduleDate || !scheduleTime) return;
+                const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+                const supabase = createClient();
+                const user = useAuthStore.getState().user;
+                if (!user) return;
+                const insertData: Record<string, unknown> = {
+                  user_id: user.id,
+                  content: content.trim(),
+                  scheduled_at: scheduledAt,
+                  sent: false,
+                };
+                if (isDm) {
+                  insertData.dm_channel_id = channelId;
+                } else {
+                  insertData.channel_id = channelId;
+                }
+                const { error } = await supabase.from("scheduled_messages").insert(insertData);
+                if (!error) {
+                  setContent("");
+                  setShowSchedule(false);
+                }
+              }}
+              className="px-3 py-1.5 text-sm bg-discord-brand hover:bg-discord-brand-hover text-white rounded transition-colors"
+            >
+              Schedule
+            </button>
+            <button
+              onClick={() => setShowSchedule(false)}
+              className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
         </>
       )}
     </div>

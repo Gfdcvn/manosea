@@ -34,11 +34,12 @@ import {
   Eye,
   EyeOff,
   Search,
+  Smile,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
-import { Server, ServerInvite, ServerRole, PERMISSION_LABELS } from "@/types";
+import { Server, ServerInvite, ServerRole, PERMISSION_LABELS, ReactionRole } from "@/types";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -55,7 +56,7 @@ const BANNER_PRESETS = [
   "#E74C3C", "#F39C12", "#8E44AD", "#2C3E50", "#16A085",
 ];
 
-type SettingsTab = "overview" | "invites" | "roles" | "members";
+type SettingsTab = "overview" | "invites" | "roles" | "members" | "reaction-roles";
 
 interface ServerSettingsProps {
   serverId: string;
@@ -298,6 +299,18 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
             <Users className="w-4 h-4" />
             Members
           </button>
+          <button
+            onClick={() => setTab("reaction-roles")}
+            className={cn(
+              "w-full text-left px-3 py-2 rounded text-sm transition-colors flex items-center gap-2",
+              tab === "reaction-roles"
+                ? "bg-discord-active text-white"
+                : "text-gray-400 hover:text-white hover:bg-discord-hover"
+            )}
+          >
+            <Smile className="w-4 h-4" />
+            Reaction Roles
+          </button>
         </nav>
       </div>
 
@@ -306,7 +319,7 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
         {/* Header bar */}
         <div className="h-14 border-b border-gray-800 flex items-center justify-between px-6 shrink-0">
           <h2 className="text-lg font-semibold text-white">
-            {tab === "overview" ? "Server Overview" : tab === "invites" ? "Invite Management" : tab === "roles" ? "Roles" : "Members"}
+            {tab === "overview" ? "Server Overview" : tab === "invites" ? "Invite Management" : tab === "roles" ? "Roles" : tab === "reaction-roles" ? "Reaction Roles" : "Members"}
           </h2>
           <button
             onClick={onClose}
@@ -841,6 +854,14 @@ export function ServerSettings({ serverId, onClose }: ServerSettingsProps) {
                 memberNotes={memberNotes}
                 channelOverrides={channelOverrides}
                 currentUserId={user?.id || ""}
+              />
+            )}
+
+            {tab === "reaction-roles" && (
+              <ReactionRolesTab
+                serverId={serverId}
+                roles={roles}
+                channels={channels}
               />
             )}
           </div>
@@ -1930,6 +1951,262 @@ function MembersTab(props: MembersTabProps) {
       </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ==================== REACTION ROLES TAB ====================
+
+interface ReactionRolesTabProps {
+  serverId: string;
+  roles: ServerRole[];
+  channels: { id: string; name: string; type: string }[];
+}
+
+function ReactionRolesTab({ serverId, roles, channels }: ReactionRolesTabProps) {
+  const [reactionRoles, setReactionRoles] = useState<ReactionRole[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState("");
+  const [messageContent, setMessageContent] = useState("");
+  const [entries, setEntries] = useState<{ emoji: string; roleId: string }[]>([{ emoji: "", roleId: "" }]);
+  const [creating, setCreating] = useState(false);
+
+  const textChannels = channels.filter((c) => c.type === "text");
+  const assignableRoles = roles.filter((r) => r.name !== "@everyone");
+
+  useEffect(() => {
+    loadReactionRoles();
+  }, [serverId]);
+
+  const loadReactionRoles = async () => {
+    setLoading(false);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("reaction_roles")
+      .select("*, role:server_roles(*)")
+      .eq("server_id", serverId)
+      .order("created_at", { ascending: false });
+    setReactionRoles((data as ReactionRole[]) || []);
+    setLoading(false);
+  };
+
+  const handleCreate = async () => {
+    if (!selectedChannel || !messageContent.trim() || entries.length === 0) return;
+    const validEntries = entries.filter((e) => e.emoji.trim() && e.roleId);
+    if (validEntries.length === 0) return;
+
+    setCreating(true);
+    const supabase = createClient();
+
+    // Send the reaction role message
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setCreating(false); return; }
+
+    // Build message with reaction role info
+    const emojiLines = validEntries.map((e) => {
+      const role = assignableRoles.find((r) => r.id === e.roleId);
+      return `${e.emoji} → ${role?.name || "Unknown Role"}`;
+    }).join("\n");
+    const fullContent = `${messageContent.trim()}\n\n${emojiLines}`;
+
+    const { data: msg, error: msgError } = await supabase
+      .from("messages")
+      .insert({ content: fullContent, author_id: user.id, channel_id: selectedChannel })
+      .select()
+      .single();
+
+    if (msgError || !msg) { setCreating(false); return; }
+
+    // Create reaction_role entries
+    for (const entry of validEntries) {
+      await supabase.from("reaction_roles").insert({
+        server_id: serverId,
+        channel_id: selectedChannel,
+        message_id: msg.id,
+        emoji: entry.emoji.trim(),
+        role_id: entry.roleId,
+      });
+    }
+
+    await loadReactionRoles();
+    setShowCreate(false);
+    setMessageContent("");
+    setEntries([{ emoji: "", roleId: "" }]);
+    setSelectedChannel("");
+    setCreating(false);
+  };
+
+  const handleDeleteReactionRole = async (id: string) => {
+    const supabase = createClient();
+    await supabase.from("reaction_roles").delete().eq("id", id);
+    setReactionRoles((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Group by message_id
+  const grouped = reactionRoles.reduce<Record<string, ReactionRole[]>>((acc, rr) => {
+    if (!acc[rr.message_id]) acc[rr.message_id] = [];
+    acc[rr.message_id].push(rr);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-6 p-6 max-w-3xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-white">Reaction Roles</h3>
+          <p className="text-sm text-gray-400 mt-1">
+            Users react to a message to get a role assigned automatically.
+          </p>
+        </div>
+        <Button
+          onClick={() => setShowCreate(true)}
+          className="bg-discord-brand hover:bg-discord-brand-hover text-white gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Create
+        </Button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-400 animate-pulse">Loading...</p>
+      ) : Object.keys(grouped).length === 0 ? (
+        <div className="text-center py-12">
+          <Smile className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-400">No reaction roles configured yet.</p>
+          <p className="text-sm text-gray-500 mt-1">Create one to let users self-assign roles by reacting.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {Object.entries(grouped).map(([msgId, rrs]) => {
+            const channel = channels.find((c) => c.id === rrs[0].channel_id);
+            return (
+              <div key={msgId} className="bg-discord-darker rounded-lg border border-gray-800 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Hash className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-400">{channel?.name || "unknown"}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {rrs.map((rr) => (
+                    <div key={rr.id} className="flex items-center gap-3 px-3 py-2 rounded bg-discord-channel">
+                      <span className="text-lg">{rr.emoji}</span>
+                      <span className="text-sm text-white">→</span>
+                      <span
+                        className="text-sm font-medium px-2 py-0.5 rounded"
+                        style={{ color: rr.role?.color || "#99aab5", backgroundColor: `${rr.role?.color || "#99aab5"}20` }}
+                      >
+                        {rr.role?.name || "Deleted Role"}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteReactionRole(rr.id)}
+                        className="ml-auto p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="bg-discord-channel border-gray-700 max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Reaction Role Message</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs uppercase text-gray-400">Channel</Label>
+              <select
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.target.value)}
+                className="w-full mt-1.5 bg-discord-input border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
+              >
+                <option value="">Select a channel...</option>
+                {textChannels.map((ch) => (
+                  <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs uppercase text-gray-400">Message</Label>
+              <Textarea
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                placeholder="React to get a role!"
+                rows={2}
+                className="mt-1.5 bg-discord-input border-gray-700 resize-none"
+              />
+            </div>
+            <div>
+              <Label className="text-xs uppercase text-gray-400">Emoji → Role Mappings</Label>
+              <div className="space-y-2 mt-1.5">
+                {entries.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      value={entry.emoji}
+                      onChange={(e) => {
+                        const next = [...entries];
+                        next[i] = { ...next[i], emoji: e.target.value };
+                        setEntries(next);
+                      }}
+                      placeholder="😎"
+                      className="w-16 bg-discord-input border-gray-700 text-center"
+                      maxLength={4}
+                    />
+                    <span className="text-gray-500">→</span>
+                    <select
+                      value={entry.roleId}
+                      onChange={(e) => {
+                        const next = [...entries];
+                        next[i] = { ...next[i], roleId: e.target.value };
+                        setEntries(next);
+                      }}
+                      className="flex-1 bg-discord-input border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">Select role...</option>
+                      {assignableRoles.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                    {entries.length > 1 && (
+                      <button
+                        onClick={() => setEntries(entries.filter((_, j) => j !== i))}
+                        className="p-1.5 rounded text-gray-500 hover:text-red-400"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEntries([...entries, { emoji: "", roleId: "" }])}
+                  className="text-xs text-gray-400 gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Mapping
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={creating || !selectedChannel || !messageContent.trim() || entries.every((e) => !e.emoji || !e.roleId)}
+              className="bg-discord-brand hover:bg-discord-brand-hover text-white"
+            >
+              {creating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

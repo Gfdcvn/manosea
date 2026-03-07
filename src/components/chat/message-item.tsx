@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Message } from "@/types";
 import { useMessageStore } from "@/stores/message-store";
 import { useServerStore } from "@/stores/server-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatRelativeTime } from "@/lib/utils";
-import { Pencil, Trash2, Copy, Pin, PinOff, Flag } from "lucide-react";
+import { Pencil, Trash2, Copy, Pin, PinOff, Flag, SmilePlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
@@ -14,6 +14,7 @@ import { ServerTagBadge } from "@/components/server-tag-badge";
 import { FormattedMessage } from "@/components/chat/formatted-message";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,8 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
   const [editContent, setEditContent] = useState(message.content || "");
   const [showActions, setShowActions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [reactions, setReactions] = useState<Record<string, { count: number; userReacted: boolean }>>({});
+  const [showReactPicker, setShowReactPicker] = useState(false);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const pinMessage = useMessageStore((s) => s.pinMessage);
@@ -86,11 +89,55 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
     }
   };
 
+  // Load reactions
+  const loadReactions = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("message_reactions")
+      .select("emoji, user_id")
+      .eq("message_id", message.id);
+    if (!data) return;
+    const map: Record<string, { count: number; userReacted: boolean }> = {};
+    data.forEach((r: { emoji: string; user_id: string }) => {
+      if (!map[r.emoji]) map[r.emoji] = { count: 0, userReacted: false };
+      map[r.emoji].count++;
+      if (r.user_id === currentUser?.id) map[r.emoji].userReacted = true;
+    });
+    setReactions(map);
+  }, [message.id, currentUser?.id]);
+
+  useEffect(() => {
+    loadReactions();
+  }, [loadReactions]);
+
+  const toggleReaction = async (emoji: string) => {
+    if (!currentUser) return;
+    const supabase = createClient();
+    const current = reactions[emoji];
+    if (current?.userReacted) {
+      await supabase
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", message.id)
+        .eq("user_id", currentUser.id)
+        .eq("emoji", emoji);
+    } else {
+      await supabase.from("message_reactions").insert({
+        message_id: message.id,
+        user_id: currentUser.id,
+        emoji,
+      });
+    }
+    await loadReactions();
+  };
+
+  const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "😮", "😢", "🔥", "👀"];
+
   return (
     <div
       className="relative group hover:bg-discord-hover/30 px-2 py-0.5 rounded"
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseLeave={() => { setShowActions(false); setShowReactPicker(false); }}
     >
       {showHeader ? (
         <div className="flex items-start gap-4 pt-4">
@@ -229,9 +276,53 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
         </div>
       )}
 
+      {/* Reactions */}
+      {Object.keys(reactions).length > 0 && (
+        <div className="flex flex-wrap gap-1 pl-14 mt-1">
+          {Object.entries(reactions).map(([emoji, data]) => (
+            <button
+              key={emoji}
+              onClick={() => toggleReaction(emoji)}
+              className={cn(
+                "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors",
+                data.userReacted
+                  ? "bg-discord-brand/20 border-discord-brand/40 text-white"
+                  : "bg-discord-darker border-gray-700 text-gray-400 hover:border-gray-500"
+              )}
+            >
+              <span>{emoji}</span>
+              <span>{data.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Action buttons */}
       {showActions && !isEditing && (
         <div className="absolute -top-3 right-2 flex items-center bg-discord-channel border border-gray-700 rounded shadow-lg">
+          {/* React */}
+          <div className="relative">
+            <button
+              onClick={() => setShowReactPicker(!showReactPicker)}
+              className="p-1.5 hover:bg-discord-hover rounded text-gray-400 hover:text-white"
+              title="Add Reaction"
+            >
+              <SmilePlus className="w-4 h-4" />
+            </button>
+            {showReactPicker && (
+              <div className="absolute bottom-full right-0 mb-1 bg-discord-darker border border-gray-700 rounded-lg shadow-xl p-2 z-50 flex gap-1">
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => { toggleReaction(emoji); setShowReactPicker(false); }}
+                    className="w-8 h-8 flex items-center justify-center rounded hover:bg-discord-hover text-lg transition-colors"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {/* Pin/Unpin */}
           {channelId && currentUser && (
             <button

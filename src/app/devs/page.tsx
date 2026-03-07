@@ -16,6 +16,7 @@ import {
   Pencil,
   Circle,
   Cpu,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,15 +28,22 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useServerStore } from "@/stores/server-store";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function DevsPage() {
   const user = useAuthStore((s) => s.user);
-  const { bots, fetchBots, createBot, deleteBot, toggleBotStatus, updateBot } = useBotStore();
+  const { bots, fetchBots, createBot, deleteBot, toggleBotStatus, updateBot, inviteBotToServer } = useBotStore();
+  const servers = useServerStore((s) => s.servers);
+  const fetchServers = useServerStore((s) => s.fetchServers);
   const router = useRouter();
 
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState<Bot | null>(null);
   const [showDelete, setShowDelete] = useState<Bot | null>(null);
+  const [showInvite, setShowInvite] = useState<Bot | null>(null);
+  const [invitingServerId, setInvitingServerId] = useState<string | null>(null);
+  const [invitedServerIds, setInvitedServerIds] = useState<Set<string>>(new Set());
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [editName, setEditName] = useState("");
@@ -45,8 +53,11 @@ export default function DevsPage() {
   const atLimit = !isSuperAdmin && bots.length >= 5;
 
   useEffect(() => {
-    if (user) fetchBots(user.id);
-  }, [user, fetchBots]);
+    if (user) {
+      fetchBots(user.id);
+      fetchServers();
+    }
+  }, [user, fetchBots, fetchServers]);
 
   const handleCreate = async () => {
     if (!user || !name.trim()) return;
@@ -68,6 +79,16 @@ export default function DevsPage() {
     if (!showDelete) return;
     await deleteBot(showDelete.id);
     setShowDelete(null);
+  };
+
+  const handleInvite = async (serverId: string) => {
+    if (!showInvite) return;
+    setInvitingServerId(serverId);
+    const ok = await inviteBotToServer(showInvite.id, serverId);
+    if (ok) {
+      setInvitedServerIds((prev) => { const next = new Set(prev); next.add(serverId); return next; });
+    }
+    setInvitingServerId(null);
   };
 
   return (
@@ -178,6 +199,13 @@ export default function DevsPage() {
                       <Cpu className="w-3.5 h-3.5" />
                       Workflow Editor
                     </Button>
+                    <button
+                      onClick={() => { setInvitedServerIds(new Set()); setShowInvite(bot); }}
+                      className="p-2 rounded-lg text-discord-muted hover:text-discord-brand hover:bg-discord-brand/10 transition-colors"
+                      title="Invite to Server"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => toggleBotStatus(bot.id)}
                       className={`p-2 rounded-lg transition-colors ${
@@ -335,6 +363,53 @@ export default function DevsPage() {
               Delete Bot
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite to Server Dialog */}
+      <Dialog open={!!showInvite} onOpenChange={() => setShowInvite(null)}>
+        <DialogContent className="bg-discord-channel border-[var(--rc-border)]">
+          <DialogHeader>
+            <DialogTitle>Invite {showInvite?.name} to a Server</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-80">
+            <div className="space-y-1">
+              {servers.length === 0 ? (
+                <p className="text-sm text-discord-muted text-center py-4">You don&apos;t have any servers.</p>
+              ) : (
+                servers.map((server) => {
+                  const isInvited = invitedServerIds.has(server.id);
+                  const isInviting = invitingServerId === server.id;
+                  return (
+                    <div
+                      key={server.id}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-discord-hover transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-discord-darker flex items-center justify-center overflow-hidden shrink-0">
+                        {server.icon_url ? (
+                          <img src={server.icon_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-bold">{server.name.slice(0, 2).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <span className="flex-1 text-sm font-medium truncate">{server.name}</span>
+                      <Button
+                        size="sm"
+                        disabled={isInvited || isInviting}
+                        onClick={() => handleInvite(server.id)}
+                        className={isInvited
+                          ? "bg-discord-green/20 text-discord-green border-discord-green/30"
+                          : "bg-discord-brand hover:bg-discord-brand-hover text-white"
+                        }
+                      >
+                        {isInvited ? "Added" : isInviting ? "Adding..." : "Add"}
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
