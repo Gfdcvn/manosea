@@ -160,7 +160,14 @@ async function executeNode(
         if (ctx.channelId && content) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
-            await supabase.from("messages").insert({ channel_id: ctx.channelId, user_id: bot.user_id, content });
+            const isDm = !ctx.serverId;
+            const msgData: Record<string, string> = { author_id: bot.user_id, content };
+            if (isDm) {
+              msgData.dm_channel_id = ctx.channelId;
+            } else {
+              msgData.channel_id = ctx.channelId;
+            }
+            await supabase.from("messages").insert(msgData);
           }
         }
         break;
@@ -456,7 +463,10 @@ async function executeNode(
         if (ctx.channelId && content) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
-            await supabase.from("messages").insert({ channel_id: ctx.channelId, user_id: bot.user_id, content });
+            const isDm = !ctx.serverId;
+            const msgData: Record<string, string> = { author_id: bot.user_id, content };
+            if (isDm) { msgData.dm_channel_id = ctx.channelId; } else { msgData.channel_id = ctx.channelId; }
+            await supabase.from("messages").insert(msgData);
           }
         }
         break;
@@ -468,7 +478,10 @@ async function executeNode(
         if (ctx.channelId && question) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
-            const { data: msg } = await supabase.from("messages").insert({ channel_id: ctx.channelId, user_id: bot.user_id, content }).select("id").single();
+            const isDm = !ctx.serverId;
+            const msgData: Record<string, string> = { author_id: bot.user_id, content };
+            if (isDm) { msgData.dm_channel_id = ctx.channelId; } else { msgData.channel_id = ctx.channelId; }
+            const { data: msg } = await supabase.from("messages").insert(msgData).select("id").single();
             if (msg) ctx.variables["poll_id"] = msg.id;
           }
         }

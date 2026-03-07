@@ -42,6 +42,8 @@ export interface User {
   nameplate: NameplateConfig | null;
   avatar_ring: AvatarRingConfig | null;
   name_effect: NameEffect;
+  profile_glow: string | null;
+  chat_bubble_color: string | null;
   created_at: string;
 }
 
@@ -67,7 +69,7 @@ export interface NameplateConfig {
 
 export type NameplateAnimation = "none" | "shimmer" | "pulse" | "colorShift" | "breathe";
 
-export type NameEffect = "none" | "shimmer" | "rainbow" | "glowPulse";
+export type NameEffect = "none" | "shimmer" | "rainbow" | "glowPulse" | "sparkle" | "neon" | "glitch" | "typewriter" | "fire";
 
 export interface AvatarRingConfig {
   color1: string;

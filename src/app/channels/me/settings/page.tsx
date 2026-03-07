@@ -1314,6 +1314,11 @@ export default function SettingsPage() {
                       { id: "shimmer", label: "Shimmer", desc: "Shiny sweep" },
                       { id: "rainbow", label: "Rainbow", desc: "Color cycle" },
                       { id: "glowPulse", label: "Glow Pulse", desc: "Pulsing glow" },
+                      { id: "sparkle", label: "Sparkle", desc: "Twinkling stars" },
+                      { id: "neon", label: "Neon", desc: "Neon flicker" },
+                      { id: "glitch", label: "Glitch", desc: "Digital glitch" },
+                      { id: "typewriter", label: "Typewriter", desc: "Typing reveal" },
+                      { id: "fire", label: "Fire", desc: "Fiery glow" },
                     ] as const).map((eff) => (
                       <button
                         key={eff.id}
@@ -1342,6 +1347,123 @@ export default function SettingsPage() {
                     </Avatar>
                     <span className={cn("text-sm font-medium text-white", nameEffect !== "none" && `name-effect-${nameEffect}`)}>{user.display_name}</span>
                   </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Profile Glow */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Profile Glow</Label>
+                  <p className="text-xs text-gray-400">Add a colored glow effect around your profile card.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={async () => {
+                        await updateProfile({ profile_glow: null });
+                        flashSaved();
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded text-xs transition-colors",
+                        !user.profile_glow ? "bg-discord-brand text-white" : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                      )}
+                    >
+                      None
+                    </button>
+                    {[
+                      { color: "#5865f2", label: "Blurple" },
+                      { color: "#57f287", label: "Green" },
+                      { color: "#fee75c", label: "Gold" },
+                      { color: "#ed4245", label: "Red" },
+                      { color: "#eb459e", label: "Pink" },
+                      { color: "#00d4ff", label: "Cyan" },
+                      { color: "#9b59b6", label: "Purple" },
+                      { color: "#ff6b35", label: "Orange" },
+                    ].map((g) => (
+                      <button
+                        key={g.color}
+                        onClick={async () => {
+                          await updateProfile({ profile_glow: g.color });
+                          flashSaved();
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded text-xs transition-all",
+                          user.profile_glow === g.color ? "ring-2 ring-white text-white" : "text-gray-300 hover:scale-105"
+                        )}
+                        style={{
+                          backgroundColor: g.color + "30",
+                          color: g.color,
+                          boxShadow: user.profile_glow === g.color ? `0 0 12px ${g.color}66` : undefined,
+                        }}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Chat Bubble Color */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Chat Bubble Color</Label>
+                  <p className="text-xs text-gray-400">A subtle colored background behind your messages.</p>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                      onClick={async () => {
+                        await updateProfile({ chat_bubble_color: null });
+                        flashSaved();
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded text-xs transition-colors",
+                        !user.chat_bubble_color ? "bg-discord-brand text-white" : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                      )}
+                    >
+                      None
+                    </button>
+                    {[
+                      { color: "#5865f2", label: "Blurple" },
+                      { color: "#57f287", label: "Green" },
+                      { color: "#ed4245", label: "Red" },
+                      { color: "#eb459e", label: "Pink" },
+                      { color: "#9b59b6", label: "Purple" },
+                      { color: "#ff6b35", label: "Orange" },
+                      { color: "#00d4ff", label: "Cyan" },
+                    ].map((c) => (
+                      <button
+                        key={c.color}
+                        onClick={async () => {
+                          await updateProfile({ chat_bubble_color: c.color });
+                          flashSaved();
+                        }}
+                        className="w-7 h-7 rounded-full border-2 transition-all hover:scale-110"
+                        style={{
+                          backgroundColor: c.color,
+                          borderColor: user.chat_bubble_color === c.color ? "#fff" : "transparent",
+                        }}
+                        title={c.label}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      value={user.chat_bubble_color || "#5865f2"}
+                      onChange={async (e) => {
+                        await updateProfile({ chat_bubble_color: e.target.value });
+                        flashSaved();
+                      }}
+                      className="w-7 h-7 rounded-full border border-gray-600 cursor-pointer bg-transparent [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch-wrapper]:p-0"
+                      title="Custom color"
+                    />
+                  </div>
+                  {/* Preview */}
+                  {user.chat_bubble_color && (
+                    <div className="p-3 rounded-lg bg-discord-dark">
+                      <div
+                        className="inline-block px-3 py-2 rounded-lg text-sm text-gray-200"
+                        style={{ backgroundColor: user.chat_bubble_color + "18" }}
+                      >
+                        This is how your messages will look! ✨
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <Separator className="my-4" />

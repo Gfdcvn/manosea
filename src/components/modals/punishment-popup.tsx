@@ -77,7 +77,7 @@ export function PunishmentPopup() {
             )}
             <p>
               Your account standing has been updated to{" "}
-              <span className={standingInfo.color}>{standingInfo.title}</span>.
+              <span style={{ color: standingInfo.color }}>{standingInfo.title}</span>.
             </p>
             {punishment.becomes_past_at && (
               <p>

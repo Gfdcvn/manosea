@@ -130,8 +130,29 @@ export default function AdminReportsPage() {
       popup_shown: false,
     });
 
-    // Update user enforcement flags
+    // Compute standing level from active punishments
+    const { data: activePunishments } = await supabase
+      .from("user_punishments")
+      .select("*")
+      .eq("user_id", selectedReport.target_user_id)
+      .eq("is_active", true)
+      .in("type", ["warn", "suspend", "mute"])
+      .or(`becomes_past_at.is.null,becomes_past_at.gt.${new Date().toISOString()}`);
+
+    const standingLevel = Math.min((activePunishments?.length || 0), 4);
+
+    const { data: userBadges } = await supabase
+      .from("user_badges")
+      .select("*, badge:badges(*)")
+      .eq("user_id", selectedReport.target_user_id);
+
+    const hasOverride = userBadges?.some((ub: { badge?: { affects_standing?: boolean } }) => ub.badge?.affects_standing);
+
+    // Update user enforcement flags + standing
     const updateData: Record<string, unknown> = {};
+    if (punishType !== "ban") {
+      updateData.standing_level = hasOverride ? 0 : standingLevel;
+    }
     if (punishType === "mute") {
       updateData.is_muted = true;
       updateData.mute_reason = punishReason;
@@ -151,6 +172,27 @@ export default function AdminReportsPage() {
     if (Object.keys(updateData).length > 0) {
       await supabase.from("users").update(updateData).eq("id", selectedReport.target_user_id);
     }
+
+    // Auto suspension at standing 4
+    if (!hasOverride && standingLevel >= 4 && punishType !== "ban") {
+      const autoExpires = new Date(Date.now() + 30 * 86400000).toISOString();
+      await supabase.from("user_punishments").insert({
+        user_id: selectedReport.target_user_id,
+        type: "suspend",
+        reason: "Reached worst standing",
+        issued_by: "00000000-0000-0000-0000-000000000001",
+        expires_at: autoExpires,
+        becomes_past_at: autoExpires,
+        is_active: true,
+        popup_shown: false,
+      });
+      await supabase.from("users").update({
+        is_suspended: true,
+        suspension_reason: "Reached worst standing",
+        suspension_end: autoExpires,
+      }).eq("id", selectedReport.target_user_id);
+    }
+
     setShowPunishDialog(false);
     setPunishReason("");
     setPunishType("warn");

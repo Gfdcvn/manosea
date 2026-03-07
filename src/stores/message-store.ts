@@ -26,6 +26,8 @@ interface MessageState {
   sendMessage: (content: string, channelId: string, isDm?: boolean) => Promise<Message | null>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
+  removeMessage: (messageId: string) => void;
+  updateMessageLocal: (messageId: string, data: Partial<Message>) => void;
 
   fetchDmChannels: () => Promise<void>;
   createDmChannel: (userId: string) => Promise<DMChannel | null>;
@@ -83,6 +85,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       if (state.messages.some((m) => m.id === message.id)) return state;
       return { messages: [...state.messages, message] };
     }),
+  removeMessage: (messageId) =>
+    set((state) => ({ messages: state.messages.filter((m) => m.id !== messageId) })),
+  updateMessageLocal: (messageId, data) =>
+    set((state) => ({
+      messages: state.messages.map((m) => (m.id === messageId ? { ...m, ...data } : m)),
+    })),
 
   fetchMessages: async (channelId, isDm = false) => {
     const supabase = createClient();

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Message } from "@/types";
 import { useMessageStore } from "@/stores/message-store";
 import { useServerStore } from "@/stores/server-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatRelativeTime } from "@/lib/utils";
-import { Pencil, Trash2, Copy, Pin, PinOff, Flag, SmilePlus } from "lucide-react";
+import { Pencil, Trash2, Copy, Pin, PinOff, Flag, SmilePlus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfileCard, getNameStyle } from "@/components/user-profile-card";
@@ -23,6 +23,23 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+
+// --- Full emoji list for custom picker (categorized) ---
+const EMOJI_CATEGORIES: Record<string, string[]> = {
+  "Smileys": ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","☺️","😚","😙","🥲","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🫡","🤐","🤨","😐","😑","😶","🫥","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🥵","🥶","🥴","😵","🤯","🤠","🥳","🥸","😎","🤓","🧐","😕","🫤","😟","🙁","☹️","😮","😯","😲","😳","🥺","🥹","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖"],
+  "Gestures": ["👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦿","🦵","🦶","👂","🦻","👃","🧠","🦷","🦴","👀","👁️","👅","👄"],
+  "Hearts": ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","❤️‍🩹","❣️","💕","💞","💓","💗","💖","💘","💝","💟","♥️","💋","💌","💐","🌹","🥀","🌺","🌸","🌼","🌻"],
+  "Animals": ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐻‍❄️","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐒","🐔","🐧","🐦","🐤","🐣","🐥","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🪰","🪲","🪳","🦟","🦗","🕷️","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🦧","🐘","🦛","🦏","🐪","🐫"],
+  "Food": ["🍎","🍐","🍊","🍋","🍌","🍉","🍇","🍓","🫐","🍈","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🍆","🥑","🥦","🥬","🥒","🌶️","🫑","🌽","🥕","🫒","🧄","🧅","🥔","🍠","🥐","🥯","🍞","🥖","🥨","🧀","🥚","🍳","🧈","🥞","🧇","🥓","🥩","🍗","🍖","🦴","🌭","🍔","🍟","🍕","🫓","🥪","🥙","🧆","🌮","🌯","🫔","🥗","🥘","🫕","🍝","🍜","🍲","🍛","🍣","🍱","🥟","🦪","🍤","🍙","🍚","🍘","🍥","🥠","🥮","🍢","🍡","🍧","🍨","🍦","🥧","🧁","🍰","🎂","🍮","🍭","🍬","🍫","🍿","🍩","🍪","🌰","🥜","🍯"],
+  "Activities": ["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🪀","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🪁","🏹","🎣","🤿","🥊","🥋","🎽","🛹","🛼","🛷","⛸️","🥌","🎿","⛷️","🏄","🏇","🏊","🤸","🏋️","🚴","🧘","🎪","🎭","🎨","🎬","🎤","🎧","🎼","🎹","🥁","🪘","🎷","🎺","🪗","🎸","🪕","🎻","🎲","♟️","🎯","🎳","🎮","🕹️","🎰"],
+  "Objects": ["⌚","📱","💻","⌨️","🖥️","🖨️","🖱️","🖲️","🕹️","🗜️","💽","💾","💿","📀","📹","🎥","📽️","🎞️","📞","☎️","📟","📠","📺","📻","🎙️","🎚️","🎛️","🧭","⏱️","⏲️","⏰","🕰️","⌛","⏳","📡","🔋","🪫","🔌","💡","🔦","🕯️","🪔","🧯","🛢️","💸","💵","💴","💶","💷","🪙","💰","💳","💎","⚖️","🪜","🧰","🪛","🔧","🔨","⚒️","🛠️","⛏️","🪚","🔩","⚙️","🪤","🧲","🔫","💣","🧨","🪓","🔪","🗡️","⚔️","🛡️","🚬","⚰️","🪦","⚱️","🏺","🔮","📿","🧿","🪬","💈","⚗️","🔭","🔬","🕳️","🩹","🩺","💊","💉","🩸","🧬","🦠","🧫","🧪","🌡️","🧹","🪠","🧺","🧻","🧼","🫧","🪥","🧽","🧯","🛒"],
+  "Symbols": ["💯","🔥","⭐","🌟","✨","⚡","💥","💫","💦","💨","🕊️","🦅","🏳️","🏴","🚩","🏁","🎌","🏳️‍🌈","🏳️‍⚧️","✅","❌","❓","❗","‼️","⁉️","💤","💢","♻️","🔱","📛","🔰","⭕","✅","☑️","✔️","❌","❎","➕","➖","➗","✖️","♾️","💲","💱","™️","©️","®️","〰️","➰","➿","🔚","🔙","🔛","🔜","🔝","🔴","🟠","🟡","🟢","🔵","🟣","🟤","⚫","⚪","🟥","🟧","🟨","🟩","🟦","🟪","🟫","⬛","⬜","◼️","◻️","▪️","▫️","🔶","🔷","🔸","🔹","🔺","🔻","💠","🔘","🔳","🔲"],
+};
+
+const ALL_EMOJIS = Object.values(EMOJI_CATEGORIES).flat();
+
+const ANIMATION_TYPES = ["bounce", "spin", "float", "shake", "pulse"] as const;
+type AnimationType = typeof ANIMATION_TYPES[number];
 
 interface MessageItemProps {
   message: Message;
@@ -41,6 +58,13 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [reactions, setReactions] = useState<Record<string, { count: number; userReacted: boolean }>>({});
   const [showReactPicker, setShowReactPicker] = useState(false);
+  const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+  const [emojiSearch, setEmojiSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Smileys");
+  const [explosionEmojis, setExplosionEmojis] = useState<{ id: number; emoji: string; x: number; y: number; anim: AnimationType }[]>([]);
+  const [hoveredReaction, setHoveredReaction] = useState<string | null>(null);
+  const explosionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messageRef = useRef<HTMLDivElement>(null);
   const editMessage = useMessageStore((s) => s.editMessage);
   const deleteMessage = useMessageStore((s) => s.deleteMessage);
   const pinMessage = useMessageStore((s) => s.pinMessage);
@@ -110,6 +134,18 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
     loadReactions();
   }, [loadReactions]);
 
+  // Listen for realtime reaction updates
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.messageId === message.id) {
+        loadReactions();
+      }
+    };
+    window.addEventListener("reaction-update", handler);
+    return () => window.removeEventListener("reaction-update", handler);
+  }, [message.id, loadReactions]);
+
   const toggleReaction = async (emoji: string) => {
     if (!currentUser) return;
     const supabase = createClient();
@@ -121,23 +157,104 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
         .eq("message_id", message.id)
         .eq("user_id", currentUser.id)
         .eq("emoji", emoji);
+
+      // Check if this is a reaction role and remove the role
+      const { data: rr } = await supabase
+        .from("reaction_roles")
+        .select("role_id, server_id")
+        .eq("message_id", message.id)
+        .eq("emoji", emoji)
+        .maybeSingle();
+      if (rr) {
+        const { data: member } = await supabase
+          .from("server_members")
+          .select("id")
+          .eq("server_id", rr.server_id)
+          .eq("user_id", currentUser.id)
+          .maybeSingle();
+        if (member) {
+          await supabase
+            .from("server_member_roles")
+            .delete()
+            .eq("member_id", member.id)
+            .eq("role_id", rr.role_id);
+        }
+      }
     } else {
       await supabase.from("message_reactions").insert({
         message_id: message.id,
         user_id: currentUser.id,
         emoji,
       });
+
+      // Check if this is a reaction role and assign the role
+      const { data: rr } = await supabase
+        .from("reaction_roles")
+        .select("role_id, server_id")
+        .eq("message_id", message.id)
+        .eq("emoji", emoji)
+        .maybeSingle();
+      if (rr) {
+        const { data: member } = await supabase
+          .from("server_members")
+          .select("id")
+          .eq("server_id", rr.server_id)
+          .eq("user_id", currentUser.id)
+          .maybeSingle();
+        if (member) {
+          await supabase
+            .from("server_member_roles")
+            .upsert({ member_id: member.id, role_id: rr.role_id }, { onConflict: "member_id,role_id" });
+        }
+      }
     }
     await loadReactions();
   };
 
   const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "😮", "😢", "🔥", "👀"];
 
+  // Filtered emojis for search in full picker
+  const filteredEmojis = useMemo(() => {
+    if (!emojiSearch.trim()) return EMOJI_CATEGORIES[selectedCategory] || [];
+    const q = emojiSearch.toLowerCase();
+    return ALL_EMOJIS.filter((e) => e.includes(q));
+  }, [emojiSearch, selectedCategory]);
+
+  // Emoji explosion: spawn ~100 animated emojis when hovering a reaction badge
+  const triggerExplosion = useCallback((emoji: string, count: number) => {
+    const total = Math.min(count * 15, 100);
+    const emojis: typeof explosionEmojis = [];
+    for (let i = 0; i < total; i++) {
+      emojis.push({
+        id: Date.now() + i,
+        emoji,
+        x: Math.random() * 280 - 140,
+        y: -(Math.random() * 160 + 40),
+        anim: ANIMATION_TYPES[i % ANIMATION_TYPES.length],
+      });
+    }
+    setExplosionEmojis(emojis);
+    if (explosionTimeoutRef.current) clearTimeout(explosionTimeoutRef.current);
+    explosionTimeoutRef.current = setTimeout(() => setExplosionEmojis([]), 2500);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (explosionTimeoutRef.current) clearTimeout(explosionTimeoutRef.current);
+    };
+  }, []);
+
+  // Chat bubble color from the message author
+  const chatBubbleColor = message.author?.chat_bubble_color;
+
   return (
     <div
+      ref={messageRef}
       className="relative group hover:bg-discord-hover/30 px-2 py-0.5 rounded"
+      style={chatBubbleColor ? { backgroundColor: chatBubbleColor + "12" } : undefined}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => { setShowActions(false); setShowReactPicker(false); }}
+      onMouseLeave={() => { setShowActions(false); setShowReactPicker(false); setShowFullEmojiPicker(false); setExplosionEmojis([]); }}
     >
       {showHeader ? (
         <div className="flex items-start gap-4 pt-4">
@@ -276,24 +393,54 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
         </div>
       )}
 
-      {/* Reactions */}
+      {/* Reactions with animation + explosion */}
       {Object.keys(reactions).length > 0 && (
-        <div className="flex flex-wrap gap-1 pl-14 mt-1">
+        <div className="relative flex flex-wrap gap-1 pl-14 mt-1">
           {Object.entries(reactions).map(([emoji, data]) => (
-            <button
+            <div
               key={emoji}
-              onClick={() => toggleReaction(emoji)}
-              className={cn(
-                "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors",
-                data.userReacted
-                  ? "bg-discord-brand/20 border-discord-brand/40 text-white"
-                  : "bg-discord-darker border-gray-700 text-gray-400 hover:border-gray-500"
-              )}
+              className="relative"
+              onMouseEnter={() => {
+                setHoveredReaction(emoji);
+                triggerExplosion(emoji, data.count);
+              }}
+              onMouseLeave={() => setHoveredReaction(null)}
             >
-              <span>{emoji}</span>
-              <span>{data.count}</span>
-            </button>
+              <button
+                onClick={() => toggleReaction(emoji)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all duration-200",
+                  data.userReacted
+                    ? "bg-discord-brand/20 border-discord-brand/40 text-white"
+                    : "bg-discord-darker border-gray-700 text-gray-400 hover:border-gray-500",
+                  hoveredReaction === emoji && "scale-110"
+                )}
+              >
+                <span className={cn(
+                  "inline-block transition-transform",
+                  hoveredReaction === emoji && "animate-reaction-bounce"
+                )}>{emoji}</span>
+                <span>{data.count}</span>
+              </button>
+            </div>
           ))}
+          {/* Emoji explosion overlay */}
+          {explosionEmojis.length > 0 && (
+            <div className="absolute inset-0 pointer-events-none overflow-visible z-50">
+              {explosionEmojis.map((e) => (
+                <span
+                  key={e.id}
+                  className={cn("absolute text-lg opacity-0", `emoji-${e.anim}`)}
+                  style={{
+                    left: `calc(50% + ${e.x}px)`,
+                    top: `calc(50% + ${e.y}px)`,
+                  }}
+                >
+                  {e.emoji}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -303,23 +450,90 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
           {/* React */}
           <div className="relative">
             <button
-              onClick={() => setShowReactPicker(!showReactPicker)}
+              onClick={() => { setShowReactPicker(!showReactPicker); setShowFullEmojiPicker(false); }}
               className="p-1.5 hover:bg-discord-hover rounded text-gray-400 hover:text-white"
               title="Add Reaction"
             >
               <SmilePlus className="w-4 h-4" />
             </button>
-            {showReactPicker && (
-              <div className="absolute bottom-full right-0 mb-1 bg-discord-darker border border-gray-700 rounded-lg shadow-xl p-2 z-50 flex gap-1">
+            {showReactPicker && !showFullEmojiPicker && (
+              <div className="absolute bottom-full right-0 mb-1 bg-discord-darker border border-gray-700 rounded-lg shadow-xl p-2 z-50 flex flex-wrap gap-1 max-w-[280px]">
                 {QUICK_EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
                     onClick={() => { toggleReaction(emoji); setShowReactPicker(false); }}
-                    className="w-8 h-8 flex items-center justify-center rounded hover:bg-discord-hover text-lg transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded hover:bg-discord-hover text-lg transition-transform hover:scale-125"
                   >
                     {emoji}
                   </button>
                 ))}
+                <button
+                  onClick={() => setShowFullEmojiPicker(true)}
+                  className="w-8 h-8 flex items-center justify-center rounded hover:bg-discord-hover text-gray-400 hover:text-white"
+                  title="More emojis"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {showFullEmojiPicker && (
+              <div
+                className="absolute bottom-full right-0 mb-1 bg-discord-darker border border-gray-700 rounded-lg shadow-xl z-50 w-[320px] max-h-[380px] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Search */}
+                <div className="p-2 border-b border-gray-700">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={emojiSearch}
+                      onChange={(e) => setEmojiSearch(e.target.value)}
+                      placeholder="Search emojis..."
+                      className="w-full bg-discord-dark border border-gray-600 rounded px-7 py-1.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-discord-brand"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                {/* Category tabs */}
+                {!emojiSearch && (
+                  <div className="flex gap-1 px-2 py-1 border-b border-gray-700 overflow-x-auto scrollbar-hide">
+                    {Object.keys(EMOJI_CATEGORIES).map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={cn(
+                          "px-2 py-0.5 text-xs rounded whitespace-nowrap transition-colors",
+                          selectedCategory === cat
+                            ? "bg-discord-brand text-white"
+                            : "text-gray-400 hover:text-white hover:bg-discord-hover"
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Emoji grid */}
+                <div className="flex-1 overflow-y-auto p-2 grid grid-cols-8 gap-0.5 min-h-0">
+                  {filteredEmojis.map((emoji, i) => (
+                    <button
+                      key={`${emoji}-${i}`}
+                      onClick={() => {
+                        toggleReaction(emoji);
+                        setShowFullEmojiPicker(false);
+                        setShowReactPicker(false);
+                        setEmojiSearch("");
+                      }}
+                      className="w-8 h-8 flex items-center justify-center rounded hover:bg-discord-hover text-lg transition-transform hover:scale-125"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                  {filteredEmojis.length === 0 && (
+                    <div className="col-span-8 text-center text-gray-500 text-sm py-4">No emojis found</div>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMessageStore } from "@/stores/message-store";
@@ -15,21 +15,46 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const bumpDmChannel = useMessageStore((s) => s.bumpDmChannel);
   const fetchDmChannels = useMessageStore((s) => s.fetchDmChannels);
 
+  // Use refs so the subscription callback always sees the latest values
+  // without needing to tear down/recreate the subscription
+  const currentChannelRef = useRef(currentChannelId);
+  useEffect(() => { currentChannelRef.current = currentChannelId; }, [currentChannelId]);
+  const addMessageRef = useRef(addMessage);
+  useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
+
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
 
-    // Subscribe to new messages
+    // Subscribe to new messages (+ edits + deletes)
     const channel = supabase
       .channel("messages-realtime")
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
         },
         async (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldMsg = payload.old as { id: string };
+            if (oldMsg.id) {
+              useMessageStore.getState().removeMessage(oldMsg.id);
+            }
+            return;
+          }
+
+          if (payload.eventType === "UPDATE") {
+            const updated = payload.new as { id: string; content?: string; is_edited?: boolean };
+            useMessageStore.getState().updateMessageLocal(updated.id, {
+              content: updated.content,
+              is_edited: updated.is_edited,
+            });
+            return;
+          }
+
+          // INSERT
           const newMessage = payload.new as { id: string; dm_channel_id?: string; channel_id?: string; author_id?: string; content?: string };
           // Fetch full message with author
           const { data } = await supabase
@@ -40,8 +65,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
           if (data) {
             const targetChannel = data.channel_id || data.dm_channel_id;
-            if (targetChannel === currentChannelId) {
-              addMessage(data);
+            if (targetChannel === currentChannelRef.current) {
+              addMessageRef.current(data);
             }
 
             // Handle DM unread + bump
@@ -226,13 +251,61 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       )
       .subscribe();
 
+    // Subscribe to reaction changes for realtime reaction updates
+    const reactionChannel = supabase
+      .channel("reactions-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = (payload.eventType === "DELETE" ? payload.old : payload.new) as { message_id?: string };
+          if (reaction?.message_id) {
+            // Broadcast a custom event so MessageItem components can refresh
+            window.dispatchEvent(new CustomEvent("reaction-update", { detail: { messageId: reaction.message_id } }));
+          }
+        }
+      )
+      .subscribe();
+
+    // Poll for scheduled messages every 15 seconds
+    const scheduledInterval = setInterval(async () => {
+      const now = new Date().toISOString();
+      const { data: pending } = await supabase
+        .from("scheduled_messages")
+        .select("*")
+        .eq("sent", false)
+        .eq("user_id", user.id)
+        .lte("scheduled_at", now);
+
+      if (pending && pending.length > 0) {
+        for (const msg of pending) {
+          const msgData: Record<string, unknown> = {
+            content: msg.content,
+            author_id: msg.user_id,
+          };
+          if (msg.channel_id) msgData.channel_id = msg.channel_id;
+          if (msg.dm_channel_id) msgData.dm_channel_id = msg.dm_channel_id;
+
+          await supabase.from("messages").insert(msgData);
+          await supabase.from("scheduled_messages").update({ sent: true }).eq("id", msg.id);
+        }
+      }
+    }, 15000);
+
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(statusChannel);
       supabase.removeChannel(punishmentChannel);
       supabase.removeChannel(dmChannelSub);
+      supabase.removeChannel(reactionChannel);
+      clearInterval(scheduledInterval);
     };
-  }, [user, currentChannelId, addMessage, markDmAsUnread, bumpDmChannel, fetchDmChannels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   return <>{children}</>;
 }

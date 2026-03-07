@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { User, UserBadge, Punishment, NAME_FONTS, NameFont, PERMISSIONS, hasPermission } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getStatusColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useServerStore } from "@/stores/server-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useMessageStore } from "@/stores/message-store";
 import { ServerTagBadge } from "@/components/server-tag-badge";
 import {
   Popover,
@@ -19,7 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Headphones, Hammer, Drama, UserPlus, UserMinus, X, Check, Search } from "lucide-react";
+import { Headphones, Hammer, Drama, UserPlus, UserMinus, X, Check, Search, MessageSquare } from "lucide-react";
 
 
 interface UserProfileCardProps {
@@ -61,6 +63,8 @@ export function UserProfileCard({
   const [friendStatus, setFriendStatus] = useState<"none" | "friends" | "pending_sent" | "pending_received">("none");
   const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
   const currentUser = useAuthStore((s) => s.user);
+  const createDmChannel = useMessageStore((s) => s.createDmChannel);
+  const router = useRouter();
 
   useEffect(() => {
     if (!open) return;
@@ -168,6 +172,15 @@ export function UserProfileCard({
     setFriendStatus("friends");
   };
 
+  const handleSendDm = async () => {
+    if (!currentUser) return;
+    const dm = await createDmChannel(user.id);
+    if (dm) {
+      setOpen(false);
+      router.push(`/channels/me/${dm.id}`);
+    }
+  };
+
   const statusLabel = (status: string) => {
     switch (status) {
       case "online": return "Online";
@@ -201,6 +214,7 @@ export function UserProfileCard({
         side={side}
         align={align}
         className="w-[340px] p-0 bg-[#232428] border-none rounded-xl overflow-hidden shadow-xl"
+        style={user.profile_glow ? { boxShadow: `0 0 20px ${user.profile_glow}44, 0 0 40px ${user.profile_glow}22` } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Banner */}
@@ -359,10 +373,17 @@ export function UserProfileCard({
             </div>
           )}
 
-          {/* Friend action buttons */}
+          {/* Friend action buttons + DM */}
           {currentUser && currentUser.id !== user.id && (
             <div className="flex gap-2 mb-3">
-              {friendStatus === "none" && (
+              <button
+                onClick={handleSendDm}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-discord-brand/20 text-discord-brand text-xs font-medium hover:bg-discord-brand/30 transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Message
+              </button>
+              {friendStatus === "none" && !user.is_bot && (
                 <button
                   onClick={handleAddFriend}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-discord-brand/20 text-discord-brand text-xs font-medium hover:bg-discord-brand/30 transition-colors"
