@@ -236,6 +236,9 @@ export const useBotStore = create<BotStore>((set, get) => ({
     if (!bot) return;
     const newStatus = bot.status === "online" ? "offline" : "online";
     await get().updateBot(botId, { status: newStatus });
+    // Also update the bot's user account status so it appears online/offline in member lists
+    const supabase = createClient();
+    await supabase.from("users").update({ status: newStatus === "online" ? "online" : "offline" }).eq("id", bot.user_id);
   },
 
   inviteBotToServer: async (botId, serverId) => {

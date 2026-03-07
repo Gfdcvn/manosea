@@ -131,41 +131,52 @@ async function executeNode(
         break;
       }
       case "action_delete_message": {
-        if (ctx.messageId) {
-          await supabase.from("messages").delete().eq("id", ctx.messageId);
+        const targetMsgId = interpolate((node.data.message_id as string) || "", ctx) || ctx.messageId;
+        if (targetMsgId) {
+          await supabase.from("messages").delete().eq("id", targetMsgId);
         }
         break;
       }
       case "action_add_reaction": {
         const emoji = (node.data.emoji as string) || "👍";
-        if (ctx.messageId) {
+        const targetMsgId = interpolate((node.data.message_id as string) || "", ctx) || ctx.messageId;
+        if (targetMsgId) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
-            await supabase.from("reactions").insert({ message_id: ctx.messageId, user_id: bot.user_id, emoji });
+            await supabase.from("message_reactions").insert({ message_id: targetMsgId, user_id: bot.user_id, emoji });
           }
         }
         break;
       }
       case "action_pin_message": {
-        if (ctx.messageId) {
-          await supabase.from("messages").update({ is_pinned: true }).eq("id", ctx.messageId);
+        const targetMsgId = interpolate((node.data.message_id as string) || "", ctx) || ctx.messageId;
+        if (targetMsgId) {
+          await supabase.from("messages").update({ pinned: true }).eq("id", targetMsgId);
         }
         break;
       }
-      case "action_edit_message":
+      case "action_edit_message": {
+        const content = interpolate((node.data.content as string) || "", ctx);
+        const targetMsgId = interpolate((node.data.message_id as string) || "", ctx) || ctx.messageId;
+        if (targetMsgId && content) {
+          await supabase.from("messages").update({ content }).eq("id", targetMsgId);
+        }
+        break;
+      }
       case "action_send_embed":
       case "action_send_button": {
         // Simplified — send as regular message with formatted content
         const content = interpolate((node.data.content as string) || (node.data.description as string) || "", ctx);
-        if (ctx.channelId && content) {
+        const channelId = interpolate((node.data.channel_id as string) || ctx.channelId || "", ctx);
+        if (channelId && content) {
           const { data: bot } = await supabase.from("bots").select("user_id").eq("id", ctx.botId).single();
           if (bot) {
             const isDm = !ctx.serverId;
             const msgData: Record<string, string> = { author_id: bot.user_id, content };
             if (isDm) {
-              msgData.dm_channel_id = ctx.channelId;
+              msgData.dm_channel_id = channelId;
             } else {
-              msgData.channel_id = ctx.channelId;
+              msgData.channel_id = channelId;
             }
             await supabase.from("messages").insert(msgData);
           }
@@ -199,14 +210,30 @@ async function executeNode(
       case "action_assign_role": {
         const roleId = (node.data.role_id as string) || "";
         if (ctx.userId && ctx.serverId && roleId) {
-          await supabase.from("server_member_roles").insert({ server_id: ctx.serverId, user_id: ctx.userId, role_id: roleId });
+          const { data: member } = await supabase
+            .from("server_members")
+            .select("id")
+            .eq("server_id", ctx.serverId)
+            .eq("user_id", ctx.userId)
+            .maybeSingle();
+          if (member) {
+            await supabase.from("server_member_roles").upsert({ member_id: member.id, role_id: roleId }, { onConflict: "member_id,role_id" });
+          }
         }
         break;
       }
       case "action_remove_role": {
         const roleId = (node.data.role_id as string) || "";
         if (ctx.userId && ctx.serverId && roleId) {
-          await supabase.from("server_member_roles").delete().match({ server_id: ctx.serverId, user_id: ctx.userId, role_id: roleId });
+          const { data: member } = await supabase
+            .from("server_members")
+            .select("id")
+            .eq("server_id", ctx.serverId)
+            .eq("user_id", ctx.userId)
+            .maybeSingle();
+          if (member) {
+            await supabase.from("server_member_roles").delete().match({ member_id: member.id, role_id: roleId });
+          }
         }
         break;
       }

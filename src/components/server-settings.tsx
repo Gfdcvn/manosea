@@ -2018,7 +2018,7 @@ function ReactionRolesTab({ serverId, roles, channels }: ReactionRolesTabProps) 
 
     if (msgError || !msg) { setCreating(false); return; }
 
-    // Create reaction_role entries
+    // Create reaction_role entries and seed initial reactions on the message
     for (const entry of validEntries) {
       await supabase.from("reaction_roles").insert({
         server_id: serverId,
@@ -2026,6 +2026,12 @@ function ReactionRolesTab({ serverId, roles, channels }: ReactionRolesTabProps) 
         message_id: msg.id,
         emoji: entry.emoji.trim(),
         role_id: entry.roleId,
+      });
+      // Seed the emoji reaction on the message so users can see & click it
+      await supabase.from("message_reactions").insert({
+        message_id: msg.id,
+        user_id: user.id,
+        emoji: entry.emoji.trim(),
       });
     }
 

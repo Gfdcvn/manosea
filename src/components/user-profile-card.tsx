@@ -213,7 +213,7 @@ export function UserProfileCard({
       <PopoverContent
         side={side}
         align={align}
-        className="w-[340px] p-0 bg-[#232428] border-none rounded-xl overflow-hidden shadow-xl"
+        className={`w-[340px] p-0 bg-[#232428] border-none rounded-xl overflow-hidden shadow-xl ${user.profile_card_animation && user.profile_card_animation !== "none" ? `profile-anim-${user.profile_card_animation}` : ""}`}
         style={user.profile_glow ? { boxShadow: `0 0 20px ${user.profile_glow}44, 0 0 40px ${user.profile_glow}22` } : undefined}
         onClick={(e) => e.stopPropagation()}
       >

@@ -1457,13 +1457,170 @@ export default function SettingsPage() {
                   {user.chat_bubble_color && (
                     <div className="p-3 rounded-lg bg-discord-dark">
                       <div
-                        className="inline-block px-3 py-2 rounded-lg text-sm text-gray-200"
-                        style={{ backgroundColor: user.chat_bubble_color + "18" }}
+                        className={`inline-block px-3 py-2 rounded-lg text-sm text-gray-200 ${user.chat_bubble_style && user.chat_bubble_style !== "none" ? `chat-bubble-${user.chat_bubble_style}` : ""}`}
+                        style={{ backgroundColor: user.chat_bubble_color + "18", "--bubble-color": user.chat_bubble_color } as React.CSSProperties}
                       >
                         This is how your messages will look! ✨
                       </div>
                     </div>
                   )}
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Chat Bubble Style */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Chat Bubble Style</Label>
+                  <p className="text-xs text-gray-400">Choose an animated or styled effect for your chat bubbles.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {([
+                      { id: "none", label: "None", desc: "Plain" },
+                      { id: "glow", label: "Glow", desc: "Soft glow" },
+                      { id: "gradient", label: "Gradient", desc: "Fading gradient" },
+                      { id: "neon", label: "Neon", desc: "Neon border" },
+                      { id: "frosted", label: "Frosted", desc: "Glass effect" },
+                      { id: "animated", label: "Animated", desc: "Shimmer pulse" },
+                    ] as const).map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={async () => {
+                          await updateProfile({ chat_bubble_style: style.id });
+                          flashSaved();
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-xs transition-colors flex flex-col items-center gap-0.5 min-w-[70px]",
+                          (user.chat_bubble_style || "none") === style.id
+                            ? "bg-discord-brand text-white"
+                            : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                        )}
+                      >
+                        <span className="text-sm font-medium">{style.label}</span>
+                        <span className="text-[9px] opacity-70">{style.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Typing Indicator Style */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Typing Indicator</Label>
+                  <p className="text-xs text-gray-400">Customize the typing animation you see while someone types.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {([
+                      { id: "default", label: "Default", desc: "Fading dots" },
+                      { id: "wave", label: "Wave", desc: "Rising wave" },
+                      { id: "bounce", label: "Bounce", desc: "Bouncy dots" },
+                      { id: "pulse", label: "Pulse", desc: "Growing dots" },
+                      { id: "ripple", label: "Ripple", desc: "Ripple effect" },
+                      { id: "orbit", label: "Orbit", desc: "Circling dots" },
+                    ] as const).map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={async () => {
+                          await updateProfile({ typing_indicator_style: style.id });
+                          flashSaved();
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-xs transition-colors flex flex-col items-center gap-0.5 min-w-[70px]",
+                          (user.typing_indicator_style || "default") === style.id
+                            ? "bg-discord-brand text-white"
+                            : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                        )}
+                      >
+                        <span className="text-sm font-medium">{style.label}</span>
+                        <span className="text-[9px] opacity-70">{style.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Color picker for typing indicator */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">Dot color:</span>
+                    <button
+                      onClick={async () => {
+                        await updateProfile({ typing_indicator_color: null });
+                        flashSaved();
+                      }}
+                      className={cn(
+                        "px-2 py-1 rounded text-[10px]",
+                        !user.typing_indicator_color ? "bg-discord-brand text-white" : "bg-discord-darker text-gray-400"
+                      )}
+                    >
+                      Default
+                    </button>
+                    {[
+                      { color: "#5865f2", label: "Blurple" },
+                      { color: "#57f287", label: "Green" },
+                      { color: "#ed4245", label: "Red" },
+                      { color: "#eb459e", label: "Pink" },
+                      { color: "#00d4ff", label: "Cyan" },
+                    ].map((c) => (
+                      <button
+                        key={c.color}
+                        onClick={async () => {
+                          await updateProfile({ typing_indicator_color: c.color });
+                          flashSaved();
+                        }}
+                        className="w-5 h-5 rounded-full border-2 transition-all hover:scale-125"
+                        style={{
+                          backgroundColor: c.color,
+                          borderColor: user.typing_indicator_color === c.color ? "#fff" : "transparent",
+                        }}
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                  {/* Preview */}
+                  <div className="p-3 rounded-lg bg-discord-dark flex items-center gap-2">
+                    <span className={`typing-${user.typing_indicator_style || "default"} inline-flex items-center gap-1`}>
+                      <span className="typing-dot w-2 h-2 rounded-full inline-block" style={{ backgroundColor: user.typing_indicator_color || "#9ca3af" }} />
+                      <span className="typing-dot w-2 h-2 rounded-full inline-block" style={{ backgroundColor: user.typing_indicator_color || "#9ca3af" }} />
+                      <span className="typing-dot w-2 h-2 rounded-full inline-block" style={{ backgroundColor: user.typing_indicator_color || "#9ca3af" }} />
+                    </span>
+                    <span className="text-xs text-gray-400">Someone is typing...</span>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                {/* Profile Card Animation */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-gray-300 uppercase">Profile Card Animation</Label>
+                  <p className="text-xs text-gray-400">Add a cool animated background to your profile card popup.</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { id: "none", label: "None", desc: "No animation", color: "#666" },
+                      { id: "wave_blue", label: "Blue Wave", desc: "Ocean waves 5s", color: "#3b82f6" },
+                      { id: "wave_purple", label: "Purple Wave", desc: "Violet tide 6s", color: "#8b5cf6" },
+                      { id: "gradient_flow", label: "Gradient Flow", desc: "Rainbow flow 8s", color: "#f43f5e" },
+                      { id: "aurora", label: "Aurora", desc: "Northern lights 10s", color: "#22d3ee" },
+                      { id: "pulse_ring", label: "Pulse Ring", desc: "Pulsing border 4s", color: "#5865f2" },
+                      { id: "particles", label: "Particles", desc: "Floating dots 7s", color: "#ec4899" },
+                      { id: "rainbow_sweep", label: "Rainbow Sweep", desc: "Color sweep 6s", color: "#eab308" },
+                      { id: "fire_border", label: "Fire Border", desc: "Fiery glow 3s", color: "#ff6600" },
+                      { id: "electric", label: "Electric", desc: "Lightning flash 4s", color: "#22d3ee" },
+                      { id: "cosmic", label: "Cosmic", desc: "Starfield 13s", color: "#a78bfa" },
+                    ] as const).map((anim) => (
+                      <button
+                        key={anim.id}
+                        onClick={async () => {
+                          await updateProfile({ profile_card_animation: anim.id });
+                          flashSaved();
+                        }}
+                        className={cn(
+                          "px-2 py-2 rounded-lg text-xs transition-all flex flex-col items-center gap-0.5 relative overflow-hidden",
+                          (user.profile_card_animation || "none") === anim.id
+                            ? "ring-2 ring-white bg-discord-brand/20 text-white"
+                            : "bg-discord-darker text-gray-400 hover:bg-discord-hover"
+                        )}
+                      >
+                        <div className="w-3 h-3 rounded-full mb-0.5" style={{ backgroundColor: anim.color }} />
+                        <span className="text-[11px] font-medium">{anim.label}</span>
+                        <span className="text-[9px] opacity-60">{anim.desc}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <Separator className="my-4" />

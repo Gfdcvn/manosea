@@ -44,6 +44,10 @@ export interface User {
   name_effect: NameEffect;
   profile_glow: string | null;
   chat_bubble_color: string | null;
+  typing_indicator_style: TypingIndicatorStyle;
+  typing_indicator_color: string | null;
+  chat_bubble_style: ChatBubbleStyle;
+  profile_card_animation: ProfileCardAnimation;
   created_at: string;
 }
 
@@ -70,6 +74,12 @@ export interface NameplateConfig {
 export type NameplateAnimation = "none" | "shimmer" | "pulse" | "colorShift" | "breathe";
 
 export type NameEffect = "none" | "shimmer" | "rainbow" | "glowPulse" | "sparkle" | "neon" | "glitch" | "typewriter" | "fire";
+
+export type TypingIndicatorStyle = "default" | "wave" | "bounce" | "pulse" | "ripple" | "orbit";
+
+export type ChatBubbleStyle = "none" | "glow" | "gradient" | "neon" | "frosted" | "animated";
+
+export type ProfileCardAnimation = "none" | "wave_blue" | "wave_purple" | "gradient_flow" | "aurora" | "pulse_ring" | "particles" | "rainbow_sweep" | "fire_border" | "electric" | "cosmic";
 
 export interface AvatarRingConfig {
   color1: string;

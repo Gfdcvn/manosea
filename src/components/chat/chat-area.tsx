@@ -170,8 +170,13 @@ export function ChatArea({ channelName, channelId, isDm = false, otherUser }: Ch
 
       {/* Typing indicator */}
       {typingUsers.length > 0 && (
-        <div className="px-4 py-1 text-xs text-gray-400">
-          <span className="animate-pulse-dot">●●●</span>{" "}
+        <div className="px-4 py-1 text-xs text-gray-400 flex items-center gap-1.5">
+          <span className={`typing-${user?.typing_indicator_style || "default"} inline-flex items-center gap-0.5`}>
+            <span className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: user?.typing_indicator_color || "currentColor" }} />
+            <span className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: user?.typing_indicator_color || "currentColor" }} />
+            <span className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: user?.typing_indicator_color || "currentColor" }} />
+          </span>
+          {" "}
           {typingUsers.map((t) => t.username).join(", ")}{" "}
           {typingUsers.length === 1 ? "is" : "are"} typing...
         </div>

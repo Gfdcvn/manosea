@@ -245,14 +245,18 @@ export function MessageItem({ message, showHeader, isOwn, channelId, isDm, isPin
     };
   }, []);
 
-  // Chat bubble color from the message author
+  // Chat bubble color and style from the message author
   const chatBubbleColor = message.author?.chat_bubble_color;
+  const chatBubbleStyle = message.author?.chat_bubble_style || "none";
+  const bubbleClassName = chatBubbleStyle !== "none" ? `chat-bubble-${chatBubbleStyle}` : "";
 
   return (
     <div
       ref={messageRef}
-      className="relative group hover:bg-discord-hover/30 px-2 py-0.5 rounded"
-      style={chatBubbleColor ? { backgroundColor: chatBubbleColor + "12" } : undefined}
+      className={`relative group hover:bg-discord-hover/30 px-2 py-0.5 rounded ${bubbleClassName}`}
+      style={{
+        ...(chatBubbleColor ? { backgroundColor: chatBubbleColor + "12", "--bubble-color": chatBubbleColor } as React.CSSProperties : {}),
+      }}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => { setShowActions(false); setShowReactPicker(false); setShowFullEmojiPicker(false); setExplosionEmojis([]); }}
     >
