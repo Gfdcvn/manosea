@@ -37,6 +37,8 @@ export interface User {
   name_gradient_end: string | null;
   name_font: NameFont;
   selected_server_tag: string | null;
+  custom_status: string | null;
+  custom_status_expires_at: string | null;
   nameplate: NameplateConfig | null;
   avatar_ring: AvatarRingConfig | null;
   name_effect: NameEffect;
@@ -399,3 +401,99 @@ export const NAME_FONTS: Record<NameFont, string> = {
   fantasy: "Impact, fantasy",
   rounded: "'Nunito', 'Quicksand', sans-serif",
 };
+
+// ====== Bot System Types ======
+
+export type BotStatus = "online" | "offline" | "error";
+
+export interface Bot {
+  id: string;
+  user_id: string;   // the bot's user account (is_bot=true)
+  owner_id: string;
+  name: string;
+  avatar_url: string | null;
+  description: string | null;
+  token: string;
+  status: BotStatus;
+  is_public: boolean;
+  created_at: string;
+}
+
+export type NodeType =
+  // Triggers (12)
+  | "trigger_on_message"        // server message received
+  | "trigger_on_dm"             // DM received
+  | "trigger_on_mention"        // bot @mentioned
+  | "trigger_on_join"           // user joins server
+  | "trigger_on_leave"          // user leaves server
+  | "trigger_on_reaction"       // reaction added
+  | "trigger_on_command"        // slash command / prefix command
+  | "trigger_on_keyword"        // message contains keyword
+  | "trigger_on_schedule"       // timed interval (minutes)
+  | "trigger_on_channel_create" // channel created
+  | "trigger_on_role_change"    // user role changed
+  | "trigger_on_bot_start"      // bot starts up
+  // Actions (30)
+  | "action_send_message"       // send a message to a channel
+  | "action_send_dm"            // DM a user
+  | "action_reply"              // reply to the trigger message
+  | "action_add_reaction"       // add a reaction to a message
+  | "action_delete_message"     // delete a message
+  | "action_pin_message"        // pin a message
+  | "action_create_channel"     // create a text channel
+  | "action_delete_channel"     // delete a channel
+  | "action_rename_channel"     // rename a channel
+  | "action_assign_role"        // assign role to user
+  | "action_remove_role"        // remove role from user
+  | "action_kick_user"          // kick user from server
+  | "action_ban_user"           // ban user from server
+  | "action_mute_user"          // server mute user
+  | "action_set_nickname"       // set a user's nickname
+  | "action_send_embed"         // send a rich embed message
+  | "action_edit_message"       // edit a bot message
+  | "action_add_delay"          // wait X seconds
+  | "action_set_variable"       // store a value in bot memory
+  | "action_get_variable"       // read from bot memory
+  | "action_random_choice"      // pick random from list
+  | "action_condition"          // if/else branch
+  | "action_log"                // log to bot console
+  | "action_http_request"       // make an HTTP GET/POST
+  | "action_json_parse"         // parse JSON string
+  | "action_math"               // math operation
+  | "action_string_format"      // format a string with variables
+  | "action_loop"               // repeat actions N times
+  | "action_send_button"        // send a message with buttons
+  | "action_counter"            // increment/decrement a counter
+  ;
+
+export interface BotNodePosition {
+  x: number;
+  y: number;
+}
+
+export interface BotNode {
+  id: string;
+  type: NodeType;
+  position: BotNodePosition;
+  data: Record<string, unknown>;
+}
+
+export interface BotConnection {
+  id: string;
+  sourceNodeId: string;
+  sourcePort: string;  // "out" or "true" / "false" for conditions
+  targetNodeId: string;
+  targetPort: string;  // "in"
+}
+
+export interface BotWorkflow {
+  id: string;
+  bot_id: string;
+  name: string;
+  nodes: BotNode[];
+  connections: BotConnection[];
+  variables: Record<string, string>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

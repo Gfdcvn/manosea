@@ -9,3 +9,7 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_ring jsonb DEFAULT NULL
 
 -- Add name effect to users
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS name_effect text DEFAULT 'none';
+
+-- Add custom text status with expiration to users
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS custom_status text DEFAULT NULL;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS custom_status_expires_at timestamptz DEFAULT NULL;

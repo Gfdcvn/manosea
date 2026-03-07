@@ -298,6 +298,9 @@ export function UserProfileCard({
             <p className="text-sm text-gray-400">
               @{user.username}
             </p>
+            {user.custom_status && (
+              <p className="text-xs text-gray-300 mt-1 italic">&quot;{user.custom_status}&quot;</p>
+            )}
           </div>
 
           {/* Three-column info cards */}

@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Plus, Compass, MessageCircle, BadgeCheck, AlertTriangle, Bell, BellOff, LogOut, FolderPlus, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Plus, Compass, MessageCircle, BadgeCheck, AlertTriangle, Bell, BellOff, LogOut, FolderPlus, ChevronDown, ChevronRight, X, Pencil, Trash2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { CreateServerModal } from "@/components/modals/create-server-modal";
 import { ExploreServersModal } from "@/components/modals/explore-servers-modal";
@@ -88,6 +88,11 @@ export function ServerSidebar() {
     y: number;
     server: Server;
   } | null>(null);
+  const [catContextMenu, setCatContextMenu] = useState<{
+    x: number;
+    y: number;
+    category: ServerCategory;
+  } | null>(null);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<Server | null>(null);
 
@@ -122,12 +127,12 @@ export function ServerSidebar() {
 
   // Close context menu on click outside
   useEffect(() => {
-    const handler = () => setContextMenu(null);
-    if (contextMenu) {
+    const handler = () => { setContextMenu(null); setCatContextMenu(null); };
+    if (contextMenu || catContextMenu) {
       document.addEventListener("click", handler);
       return () => document.removeEventListener("click", handler);
     }
-  }, [contextMenu]);
+  }, [contextMenu, catContextMenu]);
 
   const handleContextMenu = (e: React.MouseEvent, server: Server) => {
     e.preventDefault();
@@ -428,6 +433,11 @@ export function ServerSidebar() {
                 >
                   <button
                     onClick={() => toggleCategoryCollapse(cat.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCatContextMenu({ x: e.clientX, y: e.clientY, category: cat });
+                    }}
                     className={cn(
                       "w-full flex items-center justify-center gap-1 mb-1 px-1 py-0.5 rounded transition-colors hover:bg-discord-hover/50",
                       dragOverTarget === `cat-${cat.id}` && "bg-discord-brand/20"
@@ -574,6 +584,63 @@ export function ServerSidebar() {
               Leave Server
             </button>
           )}
+        </div>
+      )}
+
+      {/* Category Right-Click Context Menu */}
+      {catContextMenu && (
+        <div
+          className="fixed z-[100] min-w-[160px] bg-discord-darker border border-gray-700 rounded-lg p-1 shadow-xl animate-in fade-in-0 zoom-in-95"
+          style={{ top: catContextMenu.y, left: catContextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              const cat = catContextMenu.category;
+              setEditingCategory(cat);
+              setCatName(cat.name);
+              setCatColorMode(cat.gradientStart ? "gradient" : "solid");
+              setCatColor(cat.color || "#5865f2");
+              setCatGradStart(cat.gradientStart || "#5865f2");
+              setCatGradEnd(cat.gradientEnd || "#eb459e");
+              setShowCategoryDialog(true);
+              setCatContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-sm text-sm text-gray-200 hover:bg-discord-brand hover:text-white transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit Category
+          </button>
+          <button
+            onClick={() => {
+              toggleCategoryCollapse(catContextMenu.category.id);
+              setCatContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-sm text-sm text-gray-200 hover:bg-discord-brand hover:text-white transition-colors"
+          >
+            {catContextMenu.category.collapsed ? (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                Expand
+              </>
+            ) : (
+              <>
+                <ChevronRight className="w-4 h-4" />
+                Collapse
+              </>
+            )}
+          </button>
+          <div className="my-1 h-px bg-gray-700" />
+          <button
+            onClick={() => {
+              handleDeleteCategory(catContextMenu.category.id);
+              setCatContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-sm text-sm text-red-400 hover:bg-red-500 hover:text-white transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Category
+          </button>
         </div>
       )}
 
